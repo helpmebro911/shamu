@@ -115,9 +115,22 @@ describe("shamu CLI (subprocess)", () => {
     expect(r.status).toBe(2);
   });
 
-  it("linear tunnel is not wired yet (INTERNAL with phase 6 notice)", () => {
-    const r = runCli(["linear", "tunnel"]);
-    expect(r.status).toBe(20);
-    expect(r.stderr.toLowerCase()).toMatch(/phase 6/);
+  it("linear tunnel bails with a clear error when cloudflared is missing", () => {
+    // Point the tunnel helper at a bogus binary path so the binary-presence
+    // check fails deterministically — no real cloudflared is spawned.
+    const env = { ...process.env };
+    delete env.NODE_OPTIONS;
+    delete env.VITEST;
+    delete env.VITEST_WORKER_ID;
+    delete env.VITEST_POOL_ID;
+    env.SHAMU_LINEAR_TUNNEL_BIN = "/nonexistent/shamu-test/cloudflared-not-real";
+    const res = spawnSync("bun", [CLI_ENTRY, "linear", "tunnel"], {
+      encoding: "utf8",
+      timeout: 10_000,
+      env,
+    });
+    expect(res.status).toBe(20);
+    const combined = `${res.stdout ?? ""}${res.stderr ?? ""}`.toLowerCase();
+    expect(combined).toContain("cloudflared");
   });
 });
