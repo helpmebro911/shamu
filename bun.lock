@@ -22,6 +22,10 @@
         "shamu": "./dist/index.js",
       },
       "dependencies": {
+        "@shamu/adapter-echo": "workspace:*",
+        "@shamu/adapters-base": "workspace:*",
+        "@shamu/persistence": "workspace:*",
+        "@shamu/shared": "workspace:*",
         "citty": "0.1.6",
         "zod": "4.1.13",
       },
@@ -36,6 +40,14 @@
       },
       "devDependencies": {
         "@types/shell-quote": "1.7.5",
+      },
+    },
+    "packages/adapters/echo": {
+      "name": "@shamu/adapter-echo",
+      "version": "0.0.0",
+      "dependencies": {
+        "@shamu/adapters-base": "workspace:*",
+        "@shamu/shared": "workspace:*",
       },
     },
     "packages/persistence": {
@@ -167,6 +179,8 @@
     "@rolldown/binding-win32-x64-msvc": ["@rolldown/binding-win32-x64-msvc@1.0.0-rc.15", "", { "os": "win32", "cpu": "x64" }, "sha512-3P2A8L+x75qavWLe/Dll3EYBJLQmtkJN8rfh+U/eR3MqMgL/h98PhYI+JFfXuDPgPeCB7iZAKiqii5vqOvnA0g=="],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-rc.15", "", {}, "sha512-UromN0peaE53IaBRe9W7CjrZgXl90fqGpK+mIZbA3qSTeYqg3pqpROBdIPvOG3F5ereDHNwoHBI2e50n1BDr1g=="],
+
+    "@shamu/adapter-echo": ["@shamu/adapter-echo@workspace:packages/adapters/echo"],
 
     "@shamu/adapters-base": ["@shamu/adapters-base@workspace:packages/adapters/base"],
 

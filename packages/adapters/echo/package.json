@@ -1,0 +1,22 @@
+{
+  "name": "@shamu/adapter-echo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure in-memory stub adapter for Shamu. Emits a scripted event stream so the CLI → persistence pipeline can be smoke-tested without any vendor calls.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./script": "./src/script.ts",
+    "./capabilities.json": "./src/capabilities.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@shamu/adapters-base": "workspace:*",
+    "@shamu/shared": "workspace:*"
+  }
+}

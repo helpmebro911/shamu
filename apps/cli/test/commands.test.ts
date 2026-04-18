@@ -84,17 +84,30 @@ describe("shamu CLI (subprocess)", () => {
   });
 
   it("run --task 'x' --dry-run exits 0 and prints validated payload", () => {
-    const r = runCli(["run", "--task", "ship", "--dry-run"]);
+    const r = runCli(["run", "--adapter", "echo", "--task", "ship", "--dry-run"]);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain("run validated");
   });
 
   it("run --task 'x' --dry-run --json emits a run-validated JSON event", () => {
-    const r = runCli(["run", "--task", "ship", "--dry-run", "--json"]);
+    const r = runCli(["run", "--adapter", "echo", "--task", "ship", "--dry-run", "--json"]);
     expect(r.status).toBe(0);
     const obj = JSON.parse(r.stdout.trim().split("\n")[0] as string) as Record<string, unknown>;
     expect(obj.kind).toBe("run-validated");
     expect(obj.task).toBe("ship");
+  });
+
+  it("run without --adapter exits USAGE (2) and suggests --adapter echo", () => {
+    const r = runCli(["run", "--task", "ship"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("--adapter");
+    expect(r.stderr).toContain("echo");
+  });
+
+  it("run --adapter unknown exits USAGE (2)", () => {
+    const r = runCli(["run", "--adapter", "no-such-adapter", "--task", "ship"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr.toLowerCase()).toContain("unknown adapter");
   });
 
   it("flow run without --task exits with USAGE", () => {

@@ -39,10 +39,10 @@ Commands that tail a stream (`status`, `logs`) accept `--watch` (or `-f` for
 
 | command                         | purpose                                                   | phase that wires it |
 | ------------------------------- | --------------------------------------------------------- | ------------------- |
-| `shamu run --task "..."`        | Start a new agent run.                                    | Phase 3             |
+| `shamu run --adapter echo --task "..."` | Start a new agent run (Phase 1.E: `echo` only; `claude`/`codex` land in Phase 2). | Phase 1.E (live for `echo`) |
 | `shamu resume <run-id>`         | Warm-resume a previously-started run.                     | Phase 2.C           |
-| `shamu status [--watch]`        | Show active and recent runs.                              | Phase 1.B (persistence); 1.D shape is stable |
-| `shamu logs <run-id> [--tail]`  | Print / follow the event log for a run.                   | Phase 1.B           |
+| `shamu status [--watch]`        | Show active and recent runs.                              | Phase 1.E (live)    |
+| `shamu logs <run-id> [--tail]`  | Print / follow the event log for a run.                   | Phase 1.E (live)    |
 | `shamu kill <run-id>`           | Signal a running agent to shut down.                      | Phase 3             |
 | `shamu attach <run-id>`         | Attach to a running agent.                                | Phase 3             |
 | `shamu doctor`                  | Environment + toolchain health check.                     | Phase 1.D (live)    |
@@ -77,14 +77,18 @@ and the entry point calls `process.exit` exactly once.
 shamu doctor
 shamu doctor --json | jq 'select(.status == "fail")'
 
-# List runs (placeholder — persistence lands in Phase 1.B)
+# List runs (reads the SQLite `runs` + `events` tables)
 shamu status
 shamu status --json
 
 # Dry-run a run invocation to validate args without spawning anything
 shamu run --task "fix the memoization bug" --adapter echo --dry-run
 
-# Follow a run's event log (polling placeholder until SQLite triggers land)
+# Round-trip a scripted echo session end-to-end (Phase 1.E smoke)
+shamu run --adapter echo --task "hello"
+shamu run --adapter echo --task "hello" --json
+
+# Follow a run's event log — polls the SQLite `events` table every 500ms
 shamu logs my-run-id --tail
 
 # Tunnel webhook delivery through cloudflared (restricted to /webhooks/linear)
@@ -118,16 +122,16 @@ If no file is present, defaults are used. Parse or validation errors exit
 - **`--watch` / `--tail`** — polling placeholder that re-renders on interval.
   SQLite-trigger-driven updates land in Phase 2+.
 
-## Limitations in 1.D
+## Limitations in 1.E
 
-- No real persistence — `shamu status` and `shamu logs` emit empty stream
-  payloads with a `persistence-not-wired` note until Track 1.B lands.
-- No supervisor — `shamu kill` / `attach` / `run` (non-`--dry-run`) exit
-  `INTERNAL` with a clear "lands in Phase N" message.
-- No vendor adapters — only the `echo` adapter name is accepted in args;
-  actual spawning ships in Phase 2 (`claude`, `codex`) + 1.E (`echo`).
-- Redactor is a pass-through with a `TODO(1.B)` marker. Once
-  `@shamu/shared/redactor` ships, swap `redact` in `src/output.ts` for the
-  real implementation.
+- `shamu run --adapter echo` is the only wired adapter; `claude` and
+  `codex` land in Phase 2.
+- No supervisor — `shamu kill` / `attach` exit `INTERNAL` with a clear
+  "lands in Phase 3" message; the `run` command drives the adapter
+  directly without OTP-style supervision until then.
+- Redactor in `src/output.ts` is a pass-through with a `TODO(1.B)` marker
+  (the adapter's own emission goes through `@shamu/shared/redactor`
+  already, so on-stream events are scrubbed; the output redact layer is a
+  belt-and-braces pass for future CLI-side decoration).
 
 See `PLAN.md` for the full phase map.
