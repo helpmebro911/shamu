@@ -15,6 +15,12 @@
  *
  * Intentionally minimal -- the goal is "does the full stack wire up"
  * rather than "does the model produce good output".
+ *
+ * CI node handling: the scratch dir is not a git repo, so the real
+ * `@redwoodjs/agent-ci` gate cannot boot here. A scripted green CI is
+ * injected via `__ciRunOverride`; the planner/executor/reviewer are the
+ * actual production adapters. A future "richer live gate smoke" (Phase
+ * 5.A followup #4) will exercise CI on real workflows separately.
  */
 
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -44,6 +50,37 @@ describe.skipIf(!LIVE)("live plan-execute-review smoke", () => {
         workspaceCwd: scratch,
         // Keep iterations low so the smoke finishes quickly even on revise.
         maxIterations: 2,
+        // The scratch dir is an ad-hoc tmp directory, not a git repo, so the
+        // real agent-ci gate cannot run here. Inject a scripted green CI so
+        // the reviewer stays on its normal approve path and the smoke tests
+        // the plan -> execute -> review plumbing rather than CI bootstrap.
+        // Scoping CI to live smoke is tracked as Phase 5.A followup #4.
+        __ciRunOverride: async () => ({
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+          runDir: join(scratch, ".shamu-fake-ci"),
+          summary: {
+            runId: "smoke-ci",
+            status: "green",
+            durationMs: 0,
+            workflows: [],
+            totalSteps: 0,
+            failedSteps: [],
+          },
+          domainEvent: {
+            kind: "PatchReady",
+            runId: "smoke-ci",
+            summary: {
+              runId: "smoke-ci",
+              status: "green",
+              durationMs: 0,
+              workflows: [],
+              totalSteps: 0,
+              failedSteps: [],
+            },
+          },
+        }),
       });
 
       const bus = new EventBus<FlowEvent>();
