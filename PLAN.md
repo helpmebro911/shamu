@@ -583,11 +583,11 @@ Time-boxed validation of the assumptions that cost the most if they're wrong. Ev
 ### Phase 2 — Claude + Codex adapters
 
 **Track 2.A — Claude adapter (Parallel)**
-- [ ] `packages/adapters/claude`: wrap `query()` (returns async-iterable `Query` with `interrupt`/`setModel`/`setPermissionMode`/`rewindFiles`) behind `AgentAdapter`. Phase 0.A verified `ClaudeSDKClient` does **not** exist in `@anthropic-ai/claude-agent-sdk@0.2.113`; use `query()` for one-shot and `unstable_v2_createSession`/`unstable_v2_prompt` for warm-resume.
-- [ ] Hook bridge: `PreToolUse`/`PostToolUse`/`Stop`/`SessionStart` → normalized events
-- [ ] In-process MCP server injection for orchestrator-provided tools
-- [ ] Cache-key composition contract: include `runId` (or per-session salt) in the cache prefix; flush caches when MCP tools or system prompt change; contract test asserts two runs with different system prompts don't share a cache hit (T9 from threat model)
-- [ ] Claude-specific contract test suite run
+- [x] `packages/adapters/claude`: wrap `query()` (returns async-iterable `Query` with `interrupt`/`setModel`/`setPermissionMode`/`rewindFiles`) behind `AgentAdapter`. Phase 0.A verified `ClaudeSDKClient` does **not** exist in `@anthropic-ai/claude-agent-sdk@0.2.113`; use `query()` for one-shot and `unstable_v2_createSession`/`unstable_v2_prompt` for warm-resume.
+- [x] Hook bridge: `PreToolUse`/`PostToolUse`/`Stop`/`SessionStart` → normalized events
+- [x] In-process MCP server injection for orchestrator-provided tools
+- [x] Cache-key composition contract: include `runId` (or per-session salt) in the cache prefix; flush caches when MCP tools or system prompt change; contract test asserts two runs with different system prompts don't share a cache hit (T9 from threat model)
+- [x] Claude-specific contract test suite run (13/13)
 
 **Track 2.B — Codex adapter (Parallel with 2.A)**
 - [ ] `packages/adapters/codex`: wrap `@openai/codex-sdk` `startThread`/`resumeThread`/`runStreamed`

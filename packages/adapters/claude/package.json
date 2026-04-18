@@ -1,0 +1,22 @@
+{
+  "name": "@shamu/adapter-claude",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Production AgentAdapter wrapping @anthropic-ai/claude-agent-sdk. Phase 0.A verified ClaudeSDKClient does not exist in 0.2.113; this adapter uses `query()` for one-shot runs and `unstable_v2_createSession` / `unstable_v2_prompt` for warm resume.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./capabilities.json": "./src/capabilities.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.2.113",
+    "@shamu/adapters-base": "workspace:*",
+    "@shamu/shared": "workspace:*"
+  }
+}

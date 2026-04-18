@@ -1,0 +1,13 @@
+{
+  "resume": true,
+  "fork": false,
+  "interrupt": "cooperative",
+  "permissionModes": ["default", "acceptEdits", "plan", "bypassPermissions"],
+  "mcp": "in-process",
+  "customTools": true,
+  "patchVisibility": "events",
+  "usageReporting": "per-turn",
+  "costReporting": "native",
+  "sandboxing": "process",
+  "streaming": "events"
+}
