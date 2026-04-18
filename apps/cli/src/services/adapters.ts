@@ -13,7 +13,7 @@
 
 import type { AgentAdapter } from "@shamu/adapters-base";
 
-export type AdapterName = "echo";
+export type AdapterName = "echo" | "claude" | "codex";
 
 type AdapterLoader = () => Promise<AgentAdapter>;
 
@@ -21,6 +21,16 @@ const ADAPTER_LOADERS: Readonly<Record<AdapterName, AdapterLoader>> = {
   echo: async () => {
     const mod = await import("@shamu/adapter-echo");
     return new mod.EchoAdapter();
+  },
+  claude: async () => {
+    // Dynamic import keeps the Anthropic SDK off the startup path for users
+    // running `shamu run --adapter echo`.
+    const mod = await import("@shamu/adapter-claude");
+    return new mod.ClaudeAdapter();
+  },
+  codex: async () => {
+    const mod = await import("@shamu/adapter-codex");
+    return new mod.CodexAdapter();
   },
 };
 

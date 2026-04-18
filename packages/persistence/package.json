@@ -12,8 +12,10 @@
     "./queries/runs": "./src/queries/runs.ts",
     "./queries/events": "./src/queries/events.ts",
     "./queries/audit": "./src/queries/audit.ts",
+    "./queries/cost": "./src/queries/cost.ts",
     "./queries/leases": "./src/queries/leases.ts",
-    "./queries/mailbox": "./src/queries/mailbox.ts"
+    "./queries/mailbox": "./src/queries/mailbox.ts",
+    "./queries/sessions": "./src/queries/sessions.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

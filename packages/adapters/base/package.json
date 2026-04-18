@@ -15,6 +15,7 @@
     "./tool-result": "./src/tool-result.ts",
     "./replay": "./src/replay.ts",
     "./correlation": "./src/correlation.ts",
+    "./cost-stamping": "./src/cost-stamping.ts",
     "./errors": "./src/errors.ts",
     "./contract": "./src/contract/index.ts"
   },

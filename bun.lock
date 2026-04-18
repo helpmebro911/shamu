@@ -22,6 +22,8 @@
         "shamu": "./dist/index.js",
       },
       "dependencies": {
+        "@shamu/adapter-claude": "workspace:*",
+        "@shamu/adapter-codex": "workspace:*",
         "@shamu/adapter-echo": "workspace:*",
         "@shamu/adapters-base": "workspace:*",
         "@shamu/persistence": "workspace:*",

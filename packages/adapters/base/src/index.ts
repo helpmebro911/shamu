@@ -12,6 +12,7 @@
 export * from "./adapter.ts";
 export * from "./capabilities.ts";
 export * from "./correlation.ts";
+export * from "./cost-stamping.ts";
 export * from "./errors.ts";
 export * from "./events.ts";
 export * from "./path-scope.ts";

@@ -596,10 +596,10 @@ Time-boxed validation of the assumptions that cost the most if they're wrong. Ev
 - [x] Codex-specific contract test suite run (13/13)
 
 **Track 2.C — Session persistence & cost (Serial, depends on 2.A or 2.B landing)**
-- [ ] Persist `session_id` ↔ `run_id` mapping into SQLite
-- [ ] `shamu resume <run>` CLI command
-- [ ] `usage` + `total_cost_usd` aggregation per run, per role
-- [ ] Snapshot tests: normalized event stream for each vendor
+- [x] Persist `session_id` ↔ `run_id` mapping into SQLite (`sessionsQueries`)
+- [x] `shamu resume <run>` CLI command (wired; shared driver + T17 stamping)
+- [x] `usage` + `total_cost_usd` aggregation per run, per role (`aggregateRunCost`/`aggregateRoleCost`)
+- [x] Snapshot tests: normalized event stream for each vendor (Claude + Codex both pinned)
 
 **Exit:** single-agent run for both vendors; `shamu resume` produces cache-warm follow-up turns (verified by `cache_read_input_tokens > 0`).
 
