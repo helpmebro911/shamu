@@ -7,7 +7,7 @@ Each sub-spike writes a kill-switch finding (go / no-go with evidence) before Ph
 | ID  | Topic                          | File                          | Blocker?   |
 |-----|--------------------------------|-------------------------------|------------|
 | 0.A | Bun compatibility              | `bun-compat.md`               | —          |
-| 0.B | Event schema adequacy          | `event-schema.md`             | keys       |
+| 0.B | Event schema adequacy          | `event-schema.md`             | —          |
 | 0.C | Worktree merge mechanics       | `worktree-merge.md`           | —          |
 | 0.D | agent-ci integration shape     | `agent-ci.md`                 | —          |
 | 0.E | Threat model writeup           | `threat-model.md`             | —          |

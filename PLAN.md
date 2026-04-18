@@ -217,6 +217,7 @@ interface EventEnvelope {
 export type AgentEvent = EventEnvelope & (
   | { kind: "session_start"; source: "spawn" | "resume" | "fork" }
   | { kind: "session_end"; reason: string }
+  | { kind: "reasoning"; text: string; signature?: string }
   | { kind: "assistant_delta"; text: string }
   | { kind: "assistant_message"; text: string; stopReason: string }
   | { kind: "tool_call"; toolCallId: ToolCallId; tool: string; args: unknown }
@@ -227,11 +228,16 @@ export type AgentEvent = EventEnvelope & (
   | { kind: "stdout" | "stderr"; text: string }
   | { kind: "usage"; model: string; tokens: Tokens; cache: CacheStats }
   | { kind: "cost"; usd: number | null; confidence: "exact"|"estimate"|"unknown"; source: string }
+  | { kind: "rate_limit"; scope: "minute"|"hour"|"day"|"five_hour"|"other"; status: "ok"|"warning"|"exhausted"; resetsAt: number | null }
   | { kind: "interrupt"; requestedBy: "user"|"supervisor"|"watchdog"|"flow"; delivered: boolean }
   | { kind: "turn_end"; stopReason: string; durationMs: number }
   | { kind: "error"; fatal: boolean; code: string; message: string; retriable: boolean }
 );
 ```
+
+- **`reasoning`** is emitted by both Claude (`thinking` content blocks, with an optional `signature` cryptographic witness) and Codex (`reasoning` items). Dropping it would lose real signal the reviewer and watchdog consume.
+- **`rate_limit`** is Claude-observed today (Codex signals similar conditions through `error`). Not an error — informational but **behavior-affecting** for scheduling + budgets.
+- `turn.started` from Codex is *not* promoted to a kind — `turnId` on `EventEnvelope` plus `session_start` already scope turn membership unambiguously.
 
 **Capabilities are declared, not inferred.** Core asks, never guesses. Capability declarations are **immutable** — read from a manifest file packaged with the adapter; the adapter process cannot upgrade/downgrade capabilities at event-emit time (G8 from threat model).
 
@@ -248,6 +254,20 @@ interface Capabilities {
   costReporting: "native" | "computed" | "subscription" | "unknown";
   sandboxing: "process" | "container" | "remote" | "none";
   streaming: "events" | "final-only";
+}
+```
+
+**`SpawnOpts` carries a `vendorCliPath`** for pre-authenticated vendor CLIs, skipping env-var auth. Validated in 0.B: the Claude + Codex adapters thread this through as `pathToClaudeCodeExecutable` / codex CLI override. Load-bearing for the "user is already logged in" deploy path.
+
+```ts
+interface SpawnOpts {
+  cwd: string;
+  model?: string;
+  permissionMode?: PermissionMode;
+  vendorCliPath?: string;
+  allowedTools?: string[];
+  maxTurns?: number;
+  // extended per-adapter in Capabilities
 }
 ```
 
@@ -504,7 +524,13 @@ Time-boxed validation of the assumptions that cost the most if they're wrong. Ev
 
 **Exit:** five writeups under `docs/phase-0/`; adapter contract, event schema, patch lifecycle, CI integration, and threat model edits merged into `PLAN.md` based on findings.
 
-**Status (2026-04-17):** 0.A, 0.C, 0.D, 0.E complete. 0.B blocked on live API keys. Findings folded into PLAN.md: adapter contract (path-scope, Node backpressure), capability immutability, audit-log HMAC chain, mailbox `from_agent` authentication, `holder_worktree_path` lease column, diff-overlap + bisect-aware revert specs, agent-ci parse shape (`run-state.json` + step logs), `GITHUB_REPO` invariant, Docker container reaping, egress broker promoted to Phase 7, single-user no-auth scope confirmed, MCP trust prompt, supply-chain discipline, keychain "always allow this app" tradeoff documented.
+**Status (2026-04-17):** All five spikes complete.
+
+- **0.A Bun compatibility** — GO. Bun throughput/WAL/compile all green; SDK imports clean. Caveats: `ClaudeSDKClient` doesn't exist in `@anthropic-ai/claude-agent-sdk@0.2.113` (use `query()` + `unstable_v2_createSession`); subprocess helper must do Node-style `drain` backpressure; the 200MB Claude CLI can't be `bun build --compile`-bundled (sidecar story for Phase 8).
+- **0.B Event schema adequacy** — GO. 2.6% unmapped (3/114 events); well under 20% kill-switch. Both SDKs run under CLI-auth via `vendorCliPath`. Additions: `reasoning` kind (both vendors emit it), `rate_limit` kind (Claude budget signal), `vendorCliPath` on `SpawnOpts`, `summarizeToolResult` helper for Phase 1.C. Cost of the spike: $0.90 on Claude, subscription on Codex.
+- **0.C Worktree merge mechanics** — GO. Six manufactured scenarios pass. Three-check reconcile (merge exit code + diff-overlap + rerun CI). Holder-worktree stale-lease check. Bisect-aware revert. git 2.50 rejects `-q` on revert/prune.
+- **0.D agent-ci integration shape** — GO. Parser lifts into `packages/ci`. `GITHUB_REPO` invariant, Docker container reaping on interrupt, derive status from workflow+job (top-level `state.status` is fire-and-forget-stale).
+- **0.E Threat model** — 17 threats, 11 concrete PLAN gaps, 5 pre-Phase-1 blockers folded in (path-scope at dispatch, mailbox `from_agent` auth, audit HMAC chain, cost source from Capability, supply-chain pinning).
 
 ---
 
@@ -532,7 +558,9 @@ Time-boxed validation of the assumptions that cost the most if they're wrong. Ev
 - [ ] `packages/adapters/base`: `detached: true` / process-group spawn pattern; `process.kill(-pgid)` reap helpers
 - [ ] `packages/adapters/base`: path-scope validator (reject absolute paths outside worktree, `..`, resolved-symlink escapes) used by every adapter's permission handler
 - [ ] `packages/adapters/base`: shell AST gate (`shell-quote`) with reject-list for `$()`, backticks, `eval`, pipes-to-shell, process substitution
-- [ ] `packages/adapters/base`: normalized event replayer (record/replay for tests)
+- [ ] `packages/adapters/base`: `summarizeToolResult(bytes, text): string` shared truncation helper so every adapter produces identical summaries for identical tool outputs (per 0.B finding)
+- [ ] `packages/adapters/base`: `vendorCliPath` support in `SpawnOpts` + adapter-specific mapping (Claude → `pathToClaudeCodeExecutable`; Codex → CLI override)
+- [ ] `packages/adapters/base`: normalized event replayer (record/replay for tests) — the 0.B fixtures (`docs/phase-0/event-schema-spike/fixtures/`) are the initial regression baseline
 - [ ] `packages/adapters/base`: shared contract test suite (will be run by every adapter)
 
 **Track 1.D — CLI shell (Parallel with 1.C, depends on 1.B)**
@@ -788,7 +816,7 @@ Phases 0, 3, and 7 are the biggest parallelization wins — up to 5, 3, and 7 co
 1. **Licensing.** MIT, Apache-2.0, or AGPL? MIT maximizes adoption; AGPL protects if a vendor productizes it.
 2. **Naming.** Keep `shamu`? Want me to workshop alternatives? (Killer whales hunt in pods — the metaphor holds.)
 3. **A2A in v1?** Autonomous mode is a design goal, but A2A (remote peers over JSON-RPC with Signed Agent Cards) multiplies attack surface. Phase 8 Track 8.B is currently "optional for v1." Confirm whether to treat it as must-ship or defer.
-4. **Phase 0.B.** Needs real API keys to capture event streams from Claude and Codex. How would you like to supply them? (Keychain entry, path to a sourceable file, or direct paste when ready.)
+4. **~~Phase 0.B~~** — resolved: CLI-auth path via `vendorCliPath` works for both Claude and Codex; no env-var keys needed.
 
 ## Immediate next step
 

@@ -1,0 +1,9 @@
+[
+  {
+    "vendor": "codex",
+    "rawKind": "turn.started",
+    "shamuKind": "DROPPED",
+    "notes": "No `turn_start` kind; turn scoping derived from turn.completed",
+    "count": 1
+  }
+]

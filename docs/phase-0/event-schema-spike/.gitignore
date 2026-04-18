@@ -1,0 +1,11 @@
+node_modules
+bun.lockb
+bun.lock
+
+# Captured transcripts (raw JSONL + summaries). Fixtures (the curated sample
+# we keep as regression baselines) live under fixtures/ and ARE committed.
+captures/
+
+# Scratch repos: each canonical task gets its own git-initialized subrepo.
+# Their contents are ephemeral and may be deleted between runs.
+scratch/

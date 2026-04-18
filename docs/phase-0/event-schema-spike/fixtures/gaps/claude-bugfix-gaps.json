@@ -1,0 +1,30 @@
+[
+  {
+    "vendor": "claude",
+    "rawKind": "system:hook_started",
+    "shamuKind": "DROPPED",
+    "notes": "Hook acknowledgement — orchestrator-internal, no behavioral signal",
+    "count": 3
+  },
+  {
+    "vendor": "claude",
+    "rawKind": "system:hook_response",
+    "shamuKind": "DROPPED",
+    "notes": "Hook acknowledgement — orchestrator-internal, no behavioral signal",
+    "count": 3
+  },
+  {
+    "vendor": "claude",
+    "rawKind": "assistant.content.thinking",
+    "shamuKind": "DROPPED",
+    "notes": "Reasoning trace — no `reasoning` kind in draft; consider adding",
+    "count": 1
+  },
+  {
+    "vendor": "claude",
+    "rawKind": "rate_limit_event",
+    "shamuKind": "UNMAPPED",
+    "notes": "Rate-limit informational — no kind for quota/budget telemetry",
+    "count": 1
+  }
+]
