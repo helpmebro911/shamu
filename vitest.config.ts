@@ -7,6 +7,13 @@ export default defineConfig({
     outputFile: {
       junit: "./coverage/junit.xml",
     },
+    // Each package with Vitest tests lives in its own workspace and invokes
+    // `vitest run` from its own cwd, so this root config is only applied to
+    // tests not owned by a package (none today). Per-package configs
+    // override. `packages/persistence` deliberately opts out because it
+    // depends on `bun:sqlite`, which isn't loadable in Vitest 4's Node
+    // child pool; those tests use Bun's native test runner (`bun test`).
+    exclude: ["**/node_modules/**", "**/dist/**", "docs/**", "packages/persistence/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov", "json-summary"],

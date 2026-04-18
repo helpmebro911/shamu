@@ -1,0 +1,27 @@
+{
+  "name": "@shamu/persistence",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SQLite schema, migrations, and typed query helpers backing Shamu's event log, mailbox, leases, and audit chain.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./db": "./src/db.ts",
+    "./migrations": "./src/migrations.ts",
+    "./schema": "./src/schema.ts",
+    "./queries/runs": "./src/queries/runs.ts",
+    "./queries/events": "./src/queries/events.ts",
+    "./queries/audit": "./src/queries/audit.ts",
+    "./queries/leases": "./src/queries/leases.ts",
+    "./queries/mailbox": "./src/queries/mailbox.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=./coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@shamu/shared": "workspace:*"
+  }
+}

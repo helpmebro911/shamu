@@ -1,0 +1,28 @@
+{
+  "name": "@shamu/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared types, schemas, logger, Result helpers, branded IDs, credential backend, and redactor for Shamu packages.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./audit": "./src/audit.ts",
+    "./capabilities": "./src/capabilities.ts",
+    "./credentials": "./src/credentials.ts",
+    "./errors": "./src/errors.ts",
+    "./events": "./src/events.ts",
+    "./ids": "./src/ids.ts",
+    "./logger": "./src/logger.ts",
+    "./redactor": "./src/redactor.ts",
+    "./result": "./src/result.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "zod": "4.1.13"
+  }
+}
