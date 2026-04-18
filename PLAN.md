@@ -661,9 +661,9 @@ Mostly serial — the flow engine composes earlier primitives.
 - [x] Approve/revise verdict schema for reviewer
 
 **Track 4.C — CLI + telemetry (Parallel with 4.B)**
-- [ ] `shamu flow run <name> --task "..."`
-- [ ] `shamu flow status <flow-run>` — per-node breakdown
-- [ ] Structured JSON logs per flow-run for later replay
+- [x] `shamu flow run <name> --task "..."`
+- [x] `shamu flow status <flow-run>` — per-node breakdown
+- [x] Structured JSON logs per flow-run for later replay
 
 **Exit:** flow completes end-to-end on a sample repo; reviewer reject causes a clean executor re-run with prior diff + reviewer notes in context; **Phase 3-deferred composition exits**: two real workers in parallel worktrees coordinate via mailbox, remaining Phase 0.C scenarios reproduced as contract tests against the live flow, diff-overlap check wired into the integrate step of the patch lifecycle.
 

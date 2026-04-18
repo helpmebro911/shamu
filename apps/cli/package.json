@@ -24,6 +24,7 @@
     "@shamu/adapter-codex": "workspace:*",
     "@shamu/adapter-echo": "workspace:*",
     "@shamu/adapters-base": "workspace:*",
+    "@shamu/core-flow": "workspace:*",
     "@shamu/persistence": "workspace:*",
     "@shamu/shared": "workspace:*",
     "citty": "0.1.6",
