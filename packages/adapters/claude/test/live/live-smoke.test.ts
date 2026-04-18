@@ -54,4 +54,51 @@ describe.skipIf(!LIVE)("Claude adapter — live CLI smoke", () => {
       await handle.shutdown("live-smoke-done");
     }
   }, 60_000);
+
+  // Phase 2 exit criterion: `shamu resume` produces cache-warm follow-up
+  // turns, verified by `cache_read_input_tokens > 0` on the resumed turn.
+  // Asserted against the usage event's `tokens.cacheRead` field (which is
+  // the normalized projection of Claude's `cache_read_input_tokens`).
+  it("resume warms the prompt cache (cache_read_input_tokens > 0)", async () => {
+    const adapter = new ClaudeAdapter();
+    const originalRunId = newRunId();
+    const spawnHandle = await adapter.spawn({
+      cwd,
+      runId: originalRunId,
+      vendorCliPath: CLI_PATH,
+    });
+    let sessionId: string | null = null;
+    try {
+      await spawnHandle.send({
+        text: "Remember the word 'violet'. Reply with 'ok' and end your turn.",
+      });
+      for await (const ev of spawnHandle.events) {
+        if (ev.kind === "session_start") sessionId = ev.sessionId;
+        if (ev.kind === "turn_end") break;
+      }
+    } finally {
+      await spawnHandle.shutdown("live-cache-warm-spawn-done");
+    }
+    expect(sessionId).not.toBeNull();
+    if (!sessionId) return;
+
+    const resumedHandle = await adapter.resume(sessionId as never, {
+      cwd,
+      runId: newRunId(),
+      vendorCliPath: CLI_PATH,
+    });
+    try {
+      await resumedHandle.send({
+        text: "What word did I ask you to remember?",
+      });
+      let cacheRead = 0;
+      for await (const ev of resumedHandle.events) {
+        if (ev.kind === "usage") cacheRead = Math.max(cacheRead, ev.tokens.cacheRead ?? 0);
+        if (ev.kind === "turn_end") break;
+      }
+      expect(cacheRead).toBeGreaterThan(0);
+    } finally {
+      await resumedHandle.shutdown("live-cache-warm-resume-done");
+    }
+  }, 120_000);
 });

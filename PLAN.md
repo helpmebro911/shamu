@@ -337,8 +337,8 @@ Alerts require **two observations at confidence ≥ medium** to agree. Single-si
 
 Cost is **nullable with confidence metadata** because vendor billing models don't agree. The `source` and `confidence` labels are set by the **core** from the adapter's declared `costReporting` capability — never from runtime adapter output. A compromised adapter cannot mis-tag its own cost to evade budgets (T17 from threat model).
 
-- `costReporting: "native"` (Anthropic, Codex) → `cost.usd` set from vendor response, `confidence="exact"`, `source="vendor"`.
-- `costReporting: "subscription"` (Cursor, ChatGPT-OAuth Codex, Amp) → `cost.usd=null`, `confidence="unknown"`, `source="subscription"`.
+- `costReporting: "native"` (Anthropic) → `cost.usd` set from vendor response, `confidence="exact"`, `source="vendor"`.
+- `costReporting: "subscription"` (Cursor, Codex [both API-key and ChatGPT-OAuth paths], Amp) → `cost.usd=null`, `confidence="unknown"`, `source="subscription"`. **Codex correction (Phase 2.B):** `@openai/codex-sdk@0.121.0` surfaces only token counts — no `cost_usd` on either auth path — so Codex is declared `subscription`, not `native`. If a future SDK revision exposes dollar cost, flip the manifest to `native` in one line.
 - `costReporting: "computed"` (local models, cache-heavy runs) → `cost.usd` computed by core from `tokens × price_table`, `confidence="estimate"`, `source="computed"`.
 - `costReporting: "unknown"` → `cost.usd=null`, `confidence="unknown"`, `source="unknown"`.
 
