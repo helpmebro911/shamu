@@ -656,9 +656,9 @@ Mostly serial — the flow engine composes earlier primitives.
 - [x] Event stream: per-node progress, per-node cost roll-ups
 
 **Track 4.B — Canonical flow (Serial after 4.A)**
-- [ ] `flows/plan-execute-review.ts`: GPT-5.4 planner → Opus executor → GPT-5.4 reviewer → loop until approve / max-iterations
-- [ ] Context passing: planner output → executor input, executor diff → reviewer input
-- [ ] Approve/revise verdict schema for reviewer
+- [x] `flows/plan-execute-review.ts`: GPT-5.4 planner → Opus executor → GPT-5.4 reviewer → loop until approve / max-iterations
+- [x] Context passing: planner output → executor input, executor diff → reviewer input
+- [x] Approve/revise verdict schema for reviewer
 
 **Track 4.C — CLI + telemetry (Parallel with 4.B)**
 - [ ] `shamu flow run <name> --task "..."`

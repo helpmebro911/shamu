@@ -10,7 +10,8 @@
     "apps/*",
     "packages/*",
     "packages/adapters/*",
-    "packages/core/*"
+    "packages/core/*",
+    "packages/flows/*"
   ],
   "scripts": {
     "lint": "biome check .",

@@ -1,0 +1,123 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`prompts > executor prompt echoes the plan, is deterministic, and mentions schema 1`] = `
+{
+  "system": "You are the EXECUTOR in a plan-execute-review coding flow.
+Follow the planner's steps in order. You may edit files in your worktree.
+Stay within the \`filesTouched\` set where possible; if you must expand scope,
+note it explicitly in your final \`notes\` field.
+End your reply with a fenced \`\`\`json\`\`\` block matching exactly this shape:
+{
+  "summary": string,
+  "diffStats": { "added": number, "removed": number, "files": string[] },
+  "notes": string
+}",
+  "user": "Task:
+task-a
+
+Plan:
+{
+  "goal": "add a readme heading",
+  "steps": [
+    {
+      "id": "s1",
+      "description": "open README.md",
+      "filesTouched": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "s2",
+      "description": "insert a heading at the top",
+      "filesTouched": [
+        "README.md"
+      ]
+    }
+  ],
+  "assumptions": [
+    "the file already exists"
+  ]
+}
+
+Execute the plan. Remember: fenced \`\`\`json\`\`\` block at the end.",
+}
+`;
+
+exports[`prompts > planner prompt is deterministic and mentions the json schema marker 1`] = `
+{
+  "system": "You are the PLANNER in a plan-execute-review coding flow.
+Your job is to produce a short, ordered, executable plan for an executor agent.
+Do not write code yourself; do not modify files; do not call tools.
+End your reply with a fenced \`\`\`json\`\`\` block matching exactly this shape:
+{
+  "goal": string,
+  "steps": Array<{ "id": string, "description": string, "filesTouched": string[] }>,
+  "assumptions": string[]
+}
+The \`steps\` array must be non-empty. Each \`id\` must be unique within the plan.",
+  "user": "Task:
+task-a
+
+Repository context:
+ctx-a
+
+Produce the plan. Remember: fenced \`\`\`json\`\`\` block at the end.",
+}
+`;
+
+exports[`prompts > reviewer prompt embeds plan and execution, includes schema marker 1`] = `
+{
+  "system": "You are the REVIEWER in a plan-execute-review coding flow.
+Decide whether the executor's work fulfills the plan and the original task.
+A \`revise\` verdict sends the executor back for another iteration; reserve it
+for concrete, fixable issues (incorrect logic, missing step, obvious defect).
+Do not invent scope beyond the plan.
+End your reply with a fenced \`\`\`json\`\`\` block matching exactly this shape:
+{
+  "verdict": "approve" | "revise",
+  "feedback": string,
+  "concerns": string[]
+}",
+  "user": "Task:
+task-a
+
+Plan the executor followed:
+{
+  "goal": "add a readme heading",
+  "steps": [
+    {
+      "id": "s1",
+      "description": "open README.md",
+      "filesTouched": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "s2",
+      "description": "insert a heading at the top",
+      "filesTouched": [
+        "README.md"
+      ]
+    }
+  ],
+  "assumptions": [
+    "the file already exists"
+  ]
+}
+
+Executor's report:
+{
+  "summary": "added a heading to README.md",
+  "diffStats": {
+    "added": 1,
+    "removed": 0,
+    "files": [
+      "README.md"
+    ]
+  },
+  "notes": "no scope expansion"
+}
+
+Render a verdict. Remember: fenced \`\`\`json\`\`\` block at the end.",
+}
+`;

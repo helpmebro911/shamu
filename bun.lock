@@ -26,6 +26,7 @@
         "@shamu/adapter-codex": "workspace:*",
         "@shamu/adapter-echo": "workspace:*",
         "@shamu/adapters-base": "workspace:*",
+        "@shamu/core-flow": "workspace:*",
         "@shamu/persistence": "workspace:*",
         "@shamu/shared": "workspace:*",
         "citty": "0.1.6",
@@ -83,6 +84,18 @@
       "version": "0.0.0",
       "dependencies": {
         "@shamu/shared": "workspace:*",
+      },
+    },
+    "packages/flows/plan-execute-review": {
+      "name": "@shamu/flows-plan-execute-review",
+      "version": "0.0.0",
+      "dependencies": {
+        "@shamu/adapter-claude": "workspace:*",
+        "@shamu/adapter-codex": "workspace:*",
+        "@shamu/adapters-base": "workspace:*",
+        "@shamu/core-flow": "workspace:*",
+        "@shamu/shared": "workspace:*",
+        "zod": "4.1.13",
       },
     },
     "packages/mailbox": {
@@ -293,6 +306,8 @@
     "@shamu/core-flow": ["@shamu/core-flow@workspace:packages/core/flow"],
 
     "@shamu/core-supervisor": ["@shamu/core-supervisor@workspace:packages/core/supervisor"],
+
+    "@shamu/flows-plan-execute-review": ["@shamu/flows-plan-execute-review@workspace:packages/flows/plan-execute-review"],
 
     "@shamu/mailbox": ["@shamu/mailbox@workspace:packages/mailbox"],
 
