@@ -185,7 +185,7 @@ export interface AgentAdapter {
 }
 
 export interface AgentHandle {
-  readonly runId: RunId;                    // shamu-local
+  readonly runId: RunId;                    // shamu-local; injected via SpawnOpts from Phase 2 onward
   readonly sessionId: SessionId | null;     // vendor id for resume
   readonly events: AsyncIterable<AgentEvent>;
 
@@ -261,6 +261,7 @@ interface Capabilities {
 
 ```ts
 interface SpawnOpts {
+  runId: RunId;              // orchestrator-owned; adapter does not mint its own
   cwd: string;
   model?: string;
   permissionMode?: PermissionMode;
@@ -270,6 +271,8 @@ interface SpawnOpts {
   // extended per-adapter in Capabilities
 }
 ```
+
+**`runId` is orchestrator-owned** (from Phase 2 onward). Phase 1's echo adapter minted its own `runId` because no supervisor existed; Phase 2 vendor adapters require it via `SpawnOpts` so Phase 3's supervisor is authoritative and the adapter cannot fabricate identity.
 
 **Path-scope is enforced at tool-dispatch time, not just pre-commit (G4).** The adapter's permission handler validates every filesystem tool-call path against the current worktree root before the tool runs: reject absolute paths outside the worktree, `..` escapes, and symlinks that resolve outside. The pre-commit guard is defense in depth, not the primary control.
 
