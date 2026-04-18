@@ -1,0 +1,24 @@
+{
+  "name": "@shamu/linear-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Typed Linear GraphQL client for Shamu: personal-API-key auth (env-first, credentials-store fallback), narrow typed operations for the Phase 6 issue/label/comment/status flow, rate-limit aware.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@shamu/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.12",
+    "typescript": "6.0.3",
+    "vitest": "4.1.4"
+  }
+}
