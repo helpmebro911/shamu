@@ -41,3 +41,4 @@ Thumbs.db
 
 # Shamu runtime state (per PLAN: worktrees + mailbox exports on disk)
 .shamu/
+.gitnexus
