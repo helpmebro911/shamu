@@ -6,6 +6,7 @@
  */
 
 import type { AgentEvent, AgentHandle, EventId, MonotonicClock } from "@shamu/adapters-base";
+import { newRunId } from "@shamu/shared/ids";
 import { describe, expect, it } from "vitest";
 import { ECHO_CAPABILITIES, EchoAdapter, PLANTED_SECRET_TOKEN } from "../src/index.ts";
 
@@ -41,7 +42,7 @@ describe("EchoAdapter: capability manifest", () => {
 describe("EchoAdapter: spawn + scripted turn", () => {
   it("emits session_start → assistant_* → usage → cost → turn_end", async () => {
     const adapter = new EchoAdapter();
-    const handle = await adapter.spawn({ cwd: "/tmp" });
+    const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });
     await handle.send({ text: "" });
     const events = await collectTurn(handle);
     await handle.shutdown("done");
@@ -57,7 +58,7 @@ describe("EchoAdapter: spawn + scripted turn", () => {
 
   it("emits a deterministic cost event with source=computed and confidence=estimate", async () => {
     const adapter = new EchoAdapter();
-    const handle = await adapter.spawn({ cwd: "/tmp" });
+    const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });
     await handle.send({ text: "hello" });
     const events = await collectTurn(handle);
     await handle.shutdown("done");
@@ -72,7 +73,7 @@ describe("EchoAdapter: spawn + scripted turn", () => {
 
   it("emits a tool_call + tool_result when the prompt asks to Read README.md", async () => {
     const adapter = new EchoAdapter();
-    const handle = await adapter.spawn({ cwd: "/tmp" });
+    const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });
     await handle.send({ text: "Read the file README.md in the current directory." });
     const events = await collectTurn(handle);
     await handle.shutdown("done");
@@ -89,7 +90,7 @@ describe("EchoAdapter: spawn + scripted turn", () => {
 
   it("emits a patch_applied event for the 'create a file' prompt", async () => {
     const adapter = new EchoAdapter();
-    const handle = await adapter.spawn({ cwd: "/tmp" });
+    const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });
     await handle.send({ text: "Create a file named note.txt containing 'ok'." });
     const events = await collectTurn(handle);
     await handle.shutdown("done");
@@ -105,7 +106,7 @@ describe("EchoAdapter: spawn + scripted turn", () => {
 describe("EchoAdapter: multi-turn", () => {
   it("two consecutive sends carry distinct turnIds", async () => {
     const adapter = new EchoAdapter();
-    const handle = await adapter.spawn({ cwd: "/tmp" });
+    const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });
     await handle.send({ text: "Say 'hello'." });
     const first = await collectTurn(handle);
     await handle.send({ text: "Now say 'goodbye'." });
@@ -125,7 +126,7 @@ describe("EchoAdapter: multi-turn", () => {
 describe("EchoAdapter: interrupt", () => {
   it("interrupt() emits an interrupt event and closes the turn", async () => {
     const adapter = new EchoAdapter();
-    const handle = await adapter.spawn({ cwd: "/tmp" });
+    const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });
     await handle.send({ text: "Count slowly from 1 to 100." });
 
     // Drain until we see the parked assistant_delta, then interrupt.
@@ -157,14 +158,14 @@ describe("EchoAdapter: interrupt", () => {
 describe("EchoAdapter: resume", () => {
   it("resume(sessionId) continues with the same sessionId", async () => {
     const adapter = new EchoAdapter();
-    const handle = await adapter.spawn({ cwd: "/tmp" });
+    const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });
     await handle.send({ text: "" });
     await collectTurn(handle);
     const sid = handle.sessionId;
     if (!sid) throw new Error("spawn did not produce a sessionId");
     await handle.shutdown("done");
 
-    const resumed = await adapter.resume(sid, { cwd: "/tmp" });
+    const resumed = await adapter.resume(sid, { cwd: "/tmp", runId: newRunId() });
     expect(resumed.sessionId).toBe(sid);
     await resumed.send({ text: "Now say 'goodbye'." });
     const events = await collectTurn(resumed);
@@ -180,7 +181,7 @@ describe("EchoAdapter: resume", () => {
 describe("EchoAdapter: setModel + setPermissionMode", () => {
   it("setModel causes subsequent usage events to carry the new model", async () => {
     const adapter = new EchoAdapter();
-    const handle = await adapter.spawn({ cwd: "/tmp" });
+    const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });
     await handle.send({ text: "" });
     await collectTurn(handle);
     await handle.setModel("echo-2");
@@ -195,7 +196,7 @@ describe("EchoAdapter: setModel + setPermissionMode", () => {
 
   it("setPermissionMode rejects modes not declared in the manifest", async () => {
     const adapter = new EchoAdapter();
-    const handle = await adapter.spawn({ cwd: "/tmp" });
+    const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });
     try {
       // "plan" is a legal PermissionMode but not declared in this manifest.
       await expect(handle.setPermissionMode("plan")).rejects.toThrow(/not declared/);
@@ -212,7 +213,7 @@ describe("EchoAdapter: setModel + setPermissionMode", () => {
 describe("EchoAdapter: redaction", () => {
   it("scrubs the planted anthropic secret everywhere it appears", async () => {
     const adapter = new EchoAdapter();
-    const handle = await adapter.spawn({ cwd: "/tmp" });
+    const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });
     await handle.send({ text: `Echo this token: ${PLANTED_SECRET_TOKEN}` });
     const events = await collectTurn(handle);
     await handle.shutdown("done");
@@ -230,7 +231,7 @@ describe("EchoAdapter: determinism under injected clock", () => {
     let tick = 0;
     const clock: MonotonicClock = () => ({ monotonic: ++tick, wall: 1_700_000_000_000 + tick });
     const adapter = new EchoAdapter({ clock });
-    const handle = await adapter.spawn({ cwd: "/tmp" });
+    const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });
     await handle.send({ text: "" });
     const events = await collectTurn(handle);
     await handle.shutdown("done");
@@ -256,7 +257,7 @@ describe("EchoAdapter: determinism under injected clock", () => {
       return suffix.slice(0, 26) as EventId;
     };
     const adapter = new EchoAdapter({ newEventId: factory });
-    const handle = await adapter.spawn({ cwd: "/tmp" });
+    const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });
     await handle.send({ text: "" });
     const events = await collectTurn(handle);
     await handle.shutdown("done");

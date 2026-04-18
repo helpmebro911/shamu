@@ -19,7 +19,6 @@
 
 import {
   type EventId,
-  newRunId,
   newSessionId,
   newToolCallId,
   type RunId,
@@ -116,7 +115,10 @@ class FakeHandle implements AgentHandle {
   private readonly redactor: Redactor;
 
   constructor(sessionId: SessionId | null, vendor: string, opts: SpawnOpts) {
-    this.runId = newRunId();
+    // Phase 2+: runId is orchestrator-owned via SpawnOpts; the fake must
+    // honor it so the contract suite catches vendor adapters that try to
+    // mint their own.
+    this.runId = opts.runId;
     this._sessionId = sessionId;
     this.currentModel = opts.model ?? "fake-default-model";
     this.corr = new CorrelationState({

@@ -54,6 +54,17 @@ export interface UserAttachment {
  * either respect or loudly reject it (don't silently ignore).
  */
 export interface SpawnOpts {
+  /**
+   * Orchestrator-assigned run id. Required from Phase 2 onward — vendor
+   * adapters MUST NOT mint their own (G8 from threat model: a compromised
+   * adapter must not be able to fabricate identity that the supervisor
+   * later treats as authoritative). The returned handle's `runId` MUST
+   * equal this value.
+   *
+   * Phase 1's echo adapter minted its own runId because no orchestrator
+   * existed yet; the field is now required contract-wide.
+   */
+  readonly runId: RunId;
   readonly cwd: string;
   readonly model?: string;
   readonly permissionMode?: PermissionMode;

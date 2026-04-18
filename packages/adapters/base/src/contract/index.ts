@@ -11,6 +11,7 @@
  * capability regression slip through CI.)
  */
 
+import { newRunId } from "@shamu/shared/ids";
 import { describe, it } from "vitest";
 import { type CapabilityFeature, supportsCapability } from "../capabilities.ts";
 import { HELLO_TURN } from "./fixtures.ts";
@@ -94,7 +95,10 @@ export function runAdapterContractSuite(
         `${scenario.id} — ${scenario.description}`,
         async () => {
           const cwd = await aut.worktreeFor(scenario.id);
-          const spawnOpts = { cwd };
+          // `runId` is orchestrator-owned from Phase 2 onward; the harness
+          // mints one per scenario to stand in for a real supervisor. The
+          // adapter's returned handle.runId MUST match this value.
+          const spawnOpts = { cwd, runId: newRunId() };
           const ctx = {
             name: scenario.id,
             adapter: aut.adapter,

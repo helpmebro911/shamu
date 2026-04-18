@@ -19,7 +19,7 @@
 
 import type { AgentHandle } from "@shamu/adapters-base";
 import { eventsQueries, runsQueries, type ShamuDatabase } from "@shamu/persistence";
-import { eventId as brandEventId, type RunId } from "@shamu/shared";
+import { eventId as brandEventId, newRunId, type RunId } from "@shamu/shared";
 import { defineCommand } from "citty";
 import { ExitCode, type ExitCodeValue } from "../exit-codes.ts";
 import { modeFrom, type OutputMode, writeDiag, writeHuman, writeJson } from "../output.ts";
@@ -109,12 +109,20 @@ export const runCommand = defineCommand({
 
     try {
       const adapter = await loadAdapter(rawAdapter);
-      // The adapter mints the authoritative runId in its handle — the
-      // persisted events carry it in their envelopes, so the CLI must
-      // adopt it for the `runs` row to match. (Phase 3 supervisor will
-      // own the runId and thread it in via SpawnOpts; for now we mirror.)
-      const handle = await adapter.spawn({ cwd: process.cwd() });
-      const runId = handle.runId;
+      // Phase 2+: the CLI (standing in for the Phase 3 supervisor) is the
+      // authoritative source of `runId`. The adapter must adopt the id we
+      // hand it via SpawnOpts — asserting equality here catches any vendor
+      // adapter that tries to fabricate identity (G8 from threat model).
+      const runId = newRunId();
+      const handle = await adapter.spawn({ cwd: process.cwd(), runId });
+      if (handle.runId !== runId) {
+        writeDiag(
+          `run: adapter ${rawAdapter} returned handle.runId=${handle.runId} ` +
+            `but was spawned with runId=${runId}; refusing to continue`,
+        );
+        await handle.shutdown("runid-mismatch");
+        return done(ExitCode.INTERNAL);
+      }
       runsQueries.insertRun(db, {
         runId,
         role: args.role,

@@ -40,7 +40,6 @@ import {
 } from "@shamu/adapters-base";
 import {
   type EventId,
-  newRunId,
   newSessionId,
   newToolCallId,
   type RunId,
@@ -182,7 +181,10 @@ class EchoHandle implements AgentHandle {
     eventIdFactory: (() => EventId) | undefined,
     redactor: Redactor,
   ) {
-    this.runId = newRunId();
+    // Phase 2+: runId is orchestrator-owned and threaded through SpawnOpts.
+    // Echo used to mint its own; now it must consume the supplied id so
+    // the supervisor remains authoritative (G8 from threat model).
+    this.runId = opts.runId;
     this._sessionId = sessionId;
     this.currentModel = opts.model ?? "echo-default";
     this.redactor = redactor;
