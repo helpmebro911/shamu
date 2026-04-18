@@ -132,12 +132,12 @@ Richer local view — graphical DAGs, diff viewer, charts — running alongside 
 
 ### Task breakdown
 
-**Phase 1 — CLI (Serial with other Phase 1 work)**
-- [ ] Citty/commander command framework with per-command `--json` + `--watch`
-- [ ] `run`, `resume`, `status`, `logs`, `kill`, `attach` scaffolds
-- [ ] Canonical event formatter (`packages/shared/format`)
-- [ ] Exit-code taxonomy documented and enforced
-- [ ] `shamu doctor` env/auth health check (initially a stub; filled in each phase)
+**Phase 1 — CLI (Serial with other Phase 1 work)** ✅
+- [x] Citty command framework with per-command `--json` + `--watch`
+- [x] `run`, `resume`, `status`, `logs`, `kill`, `attach` scaffolds (run/status/logs wired to real SQLite; kill/attach/resume await Phase 3's supervisor)
+- [ ] Canonical event formatter (`packages/shared/format`) — **deferred**: there is only one surface (CLI) in v1; formatter lives inline in `apps/cli/src/output.ts` and will be hoisted to `packages/shared/format` when the TUI lands in Phase 3
+- [x] Exit-code taxonomy documented and enforced
+- [x] `shamu doctor` env/auth health check (initially a stub; filled in each phase)
 
 **Phase 3 — TUI (Parallel with Phase 3 supervisor/mailbox work)**
 - [ ] `apps/tui` Ink bootstrap; route/view component model
@@ -495,35 +495,35 @@ Calendar time is deliberately unassigned. The review agent flagged an 8-week tim
 
 Time-boxed validation of the assumptions that cost the most if they're wrong. Every task produces a **kill-switch finding** checked into `docs/phase-0/` — a written go/no-go with evidence. Contract edits happen in response to these findings before Phase 1 starts.
 
-**Track 0.A — Bun compatibility (Parallel)**
-- [ ] Claude Agent SDK under Bun: `spawn`, JSONL streaming, hook bridge; compare event shapes to Node reference
-- [ ] Codex SDK under Bun: `startThread`/`runStreamed` shape, resume, subprocess reaping under SIGINT/SIGTERM
-- [ ] SQLite WAL under Bun with 5–10 concurrent readers + 1 writer; measure p50/p99 write latency under realistic event volume
-- [ ] `bun build --compile` single-binary with SQLite embedded; smoke on macOS arm64 + Linux x86_64
-- [ ] **Kill-switch:** if any package misbehaves, declare `engine: node` for that package and matrix both runtimes in CI
+**Track 0.A — Bun compatibility (Parallel)** ✅
+- [x] Claude Agent SDK under Bun: `spawn`, JSONL streaming, hook bridge; compare event shapes to Node reference
+- [x] Codex SDK under Bun: `startThread`/`runStreamed` shape, resume, subprocess reaping under SIGINT/SIGTERM
+- [x] SQLite WAL under Bun with 5–10 concurrent readers + 1 writer; measure p50/p99 write latency under realistic event volume
+- [x] `bun build --compile` single-binary with SQLite embedded; smoke on macOS arm64 + Linux x86_64
+- [x] **Kill-switch:** not triggered — Bun stayed as the default runtime; 200MB Claude CLI sidecar deferred to Phase 8
 
-**Track 0.B — Event schema adequacy (Parallel)**
-- [ ] Capture raw event streams from Claude and Codex on three canonical tasks (bug fix, refactor, new feature) — stored as fixtures
-- [ ] Project into the draft normalized schema; record every field that required a new kind or extension
-- [ ] Lock the `AgentEvent` taxonomy against evidence, not a priori design
-- [ ] **Kill-switch:** if >20% of observed behaviors need `extra`-style grab-bag, redesign before Phase 1
+**Track 0.B — Event schema adequacy (Parallel)** ✅
+- [x] Capture raw event streams from Claude and Codex on three canonical tasks (bug fix, refactor, new feature) — stored as fixtures
+- [x] Project into the draft normalized schema; record every field that required a new kind or extension
+- [x] Lock the `AgentEvent` taxonomy against evidence, not a priori design
+- [x] **Kill-switch:** not triggered — 2.6% unmapped (well under 20%); added `reasoning` + `rate_limit` kinds and `vendorCliPath` on `SpawnOpts`
 
-**Track 0.C — Worktree merge mechanics (Parallel)**
-- [ ] Manufactured conflicts: two agents edit overlapping files in separate worktrees; prove the post-merge diff-overlap check catches it
-- [ ] Integration-branch rerun-CI loop with induced red patches; verify automatic revert + `CIRed` flow
-- [ ] Measure cleanup cost and disk footprint with 10 concurrent worktrees
-- [ ] **Kill-switch:** if reconcile loop isn't deterministic, redesign the patch lifecycle before Phase 3
+**Track 0.C — Worktree merge mechanics (Parallel)** ✅
+- [x] Manufactured conflicts: two agents edit overlapping files in separate worktrees; prove the post-merge diff-overlap check catches it
+- [x] Integration-branch rerun-CI loop with induced red patches; verify automatic revert + `CIRed` flow
+- [x] Measure cleanup cost and disk footprint with 10 concurrent worktrees
+- [x] **Kill-switch:** not triggered — reconcile loop deterministic across all six manufactured scenarios
 
-**Track 0.D — agent-ci integration shape (Parallel)**
-- [ ] Invoke `agent-ci` against a scratch repo; capture JSON/JUnit output structure
-- [ ] Decide failure-excerpt extraction heuristic (token-bounded, deterministic)
-- [ ] Write a replay harness so reviewer-context tests don't need live CI runs
-- [ ] **Kill-switch:** if `agent-ci` output isn't stable enough to parse cleanly, add a structured-output request upstream before Phase 5
+**Track 0.D — agent-ci integration shape (Parallel)** ✅
+- [x] Invoke `agent-ci` against a scratch repo; capture JSON/JUnit output structure
+- [x] Decide failure-excerpt extraction heuristic (token-bounded, deterministic)
+- [x] Write a replay harness so reviewer-context tests don't need live CI runs
+- [x] **Kill-switch:** not triggered — `run-state.json` + step logs parse cleanly; soft RFC for `--report=json` filed as a follow-up, not a blocker
 
-**Track 0.E — Threat model writeup (Parallel with everything)**
-- [ ] Data-flow diagram: credentials, user prompts, webhook payloads, agent outputs
-- [ ] Trust boundaries drawn (host ↔ agent, agent ↔ vendor API, local ↔ webhook sender, local ↔ dashboard client)
-- [ ] Mitigations mapped to the Security & threat model section above; gaps flagged as phase blockers
+**Track 0.E — Threat model writeup (Parallel with everything)** ✅
+- [x] Data-flow diagram: credentials, user prompts, webhook payloads, agent outputs
+- [x] Trust boundaries drawn (host ↔ agent, agent ↔ vendor API, local ↔ webhook sender, local ↔ dashboard client)
+- [x] Mitigations mapped to the Security & threat model section above; gaps flagged as phase blockers
 
 **Exit:** five writeups under `docs/phase-0/`; adapter contract, event schema, patch lifecycle, CI integration, and threat model edits merged into `PLAN.md` based on findings.
 
@@ -539,43 +539,44 @@ Time-boxed validation of the assumptions that cost the most if they're wrong. Ev
 
 ### Phase 1 — Foundations
 
-**Track 1.A — Repo bootstrap (Serial, blocks everything else)**
-- [ ] Init Bun workspace + `turborepo` (or `moonrepo`) topology ⇢
-- [ ] Wire Biome lint/format, Vitest, TypeScript strict config ⇢
-- [ ] `.github/workflows/ci.yml` skeleton (lint + typecheck + test)
+**Track 1.A — Repo bootstrap (Serial, blocks everything else)** ✅
+- [x] Init Bun workspace + `turborepo` (or `moonrepo`) topology ⇢
+- [x] Wire Biome lint/format, Vitest, TypeScript strict config ⇢
+- [x] `.github/workflows/ci.yml` skeleton (lint + typecheck + test) — matrix across macOS + Linux
 
-**Track 1.B — Shared foundations (Parallel, start after 1.A)**
-- [ ] `packages/shared`: `Logger`, `Result<T,E>` helpers, error taxonomy, branded IDs
-- [ ] `packages/shared`: Zod schemas for `AgentEvent`, `SpawnOpts`, `Capabilities`, audit events
-- [ ] `packages/shared/credentials`: cross-platform keychain abstraction (macOS `security`, Linux `libsecret`/`Secret Service`); "always allow this app" flag documented
-- [ ] `packages/shared/redactor`: central secret redactor (regex + value-hash list); planted-secret test suite
-- [ ] `packages/persistence`: SQLite schema + migration runner with advisory-lock protection
-- [ ] `packages/persistence`: tables for `runs`, `sessions`, `events`, `raw_events`, `checkpoints`, `mailbox`, `leases` (incl. `holder_run_id`, `holder_worktree_path`), `linear_issues`, `ci_runs`, `audit_events` (HMAC-chained)
-- [ ] `packages/persistence`: `BEFORE UPDATE OR DELETE` trigger on `audit_events` raising
-- [ ] `packages/persistence`: typed query helpers (no ORM — prepared statements only)
-- [ ] ESLint/Biome rule in `packages/persistence`: no dynamic SQL string building (reject `\`SELECT … ${…}\`` patterns)
+**Track 1.B — Shared foundations (Parallel, start after 1.A)** ✅
+- [x] `packages/shared`: `Logger`, `Result<T,E>` helpers, error taxonomy, branded IDs
+- [x] `packages/shared`: Zod schemas for `AgentEvent` (incl. `reasoning` + `rate_limit`), `SpawnOpts`, `Capabilities`, audit events
+- [x] `packages/shared/credentials`: cross-platform keychain abstraction (macOS `security`, Linux `libsecret`/`Secret Service`); "always allow this app" flag documented
+- [x] `packages/shared/redactor`: central secret redactor (regex + value-hash list); planted-secret test suite
+- [x] `packages/persistence`: SQLite schema + migration runner with advisory-lock protection
+- [x] `packages/persistence`: tables for `runs`, `sessions`, `events`, `raw_events`, `checkpoints`, `mailbox`, `leases` (incl. `holder_run_id`, `holder_worktree_path`), `linear_issues`, `ci_runs`, `flow_runs`, `audit_events` (HMAC-chained)
+- [x] `packages/persistence`: `BEFORE UPDATE OR DELETE` trigger on `audit_events` raising
+- [x] `packages/persistence`: typed query helpers (no ORM — prepared statements only)
+- [x] No dynamic SQL string building in `packages/persistence` (enforced via a unit test that greps source, not a Biome rule — runs on every CI)
 
-**Track 1.C — Adapter contract (Serial after 1.B shared types)**
-- [ ] `packages/adapters/base`: `AgentAdapter`, `AgentHandle`, `AgentEvent`, `Capabilities` interfaces + immutable manifest loader
-- [ ] `packages/adapters/base`: subprocess-with-JSONL helper (`Bun.spawn` + line splitter + **Node-style `drain` backpressure** for writes to vendor stdin; all vendor CLIs are Node-based)
-- [ ] `packages/adapters/base`: `detached: true` / process-group spawn pattern; `process.kill(-pgid)` reap helpers
-- [ ] `packages/adapters/base`: path-scope validator (reject absolute paths outside worktree, `..`, resolved-symlink escapes) used by every adapter's permission handler
-- [ ] `packages/adapters/base`: shell AST gate (`shell-quote`) with reject-list for `$()`, backticks, `eval`, pipes-to-shell, process substitution
-- [ ] `packages/adapters/base`: `summarizeToolResult(bytes, text): string` shared truncation helper so every adapter produces identical summaries for identical tool outputs (per 0.B finding)
-- [ ] `packages/adapters/base`: `vendorCliPath` support in `SpawnOpts` + adapter-specific mapping (Claude → `pathToClaudeCodeExecutable`; Codex → CLI override)
-- [ ] `packages/adapters/base`: normalized event replayer (record/replay for tests) — the 0.B fixtures (`docs/phase-0/event-schema-spike/fixtures/`) are the initial regression baseline
-- [ ] `packages/adapters/base`: shared contract test suite (will be run by every adapter)
+**Track 1.C — Adapter contract (Serial after 1.B shared types)** ✅
+- [x] `packages/adapters/base`: `AgentAdapter`, `AgentHandle`, `AgentEvent`, `Capabilities` interfaces + immutable manifest loader
+- [x] `packages/adapters/base`: subprocess-with-JSONL helper (`Bun.spawn` + line splitter + **Node-style `drain` backpressure** for writes to vendor stdin; all vendor CLIs are Node-based)
+- [x] `packages/adapters/base`: `detached: true` / process-group spawn pattern; `process.kill(-pgid)` reap helpers
+- [x] `packages/adapters/base`: path-scope validator (reject absolute paths outside worktree, `..`, resolved-symlink escapes) used by every adapter's permission handler
+- [x] `packages/adapters/base`: shell AST gate (`shell-quote`) with reject-list for `$()`, backticks, `eval`, pipes-to-shell, process substitution
+- [x] `packages/adapters/base`: `summarizeToolResult(bytes, text): string` shared truncation helper so every adapter produces identical summaries for identical tool outputs (per 0.B finding)
+- [x] `packages/adapters/base`: `vendorCliPath` support in `SpawnOpts` + adapter-specific mapping (Claude → `pathToClaudeCodeExecutable`; Codex → CLI override)
+- [x] `packages/adapters/base`: normalized event replayer (record/replay for tests) — the 0.B fixtures (`docs/phase-0/event-schema-spike/fixtures/`) are the initial regression baseline (replay uses a temporary normalization shim; regenerate fixtures in Phase 2)
+- [x] `packages/adapters/base`: shared contract test suite (will be run by every adapter)
 
-**Track 1.D — CLI shell (Parallel with 1.C, depends on 1.B)**
-- [ ] `apps/cli`: command framework (`citty` or `commander`)
-- [ ] `shamu run`, `shamu status`, `shamu logs <run>`, `shamu kill <run>` scaffolds
-- [ ] Config loader (Zod-validated `shamu.config.ts`)
+**Track 1.D — CLI shell (Parallel with 1.C, depends on 1.B)** ✅
+- [x] `apps/cli`: command framework (citty) with per-command `--json` + `--watch` helpers and a single-exit runner
+- [x] `shamu run`, `shamu resume`, `shamu status`, `shamu logs`, `shamu kill`, `shamu attach`, `shamu flow run/status`, `shamu linear tunnel`, `shamu doctor`, `shamu ui` — all scaffolded; `run`/`status`/`logs` wired to real SQLite in 1.E
+- [x] Config loader (Zod-validated `shamu.config.ts`) with parse/validate/import error kinds
+- [x] Exit-code taxonomy documented + enforced across every command
 
-**Track 1.E — Stub adapter (Serial after 1.C)**
-- [ ] `packages/adapters/echo`: emits canned events; passes contract suite
-- [ ] End-to-end smoke: `shamu run --adapter echo` → events streamed to stdout + persisted
+**Track 1.E — Stub adapter (Serial after 1.C)** ✅
+- [x] `packages/adapters/echo`: emits canned events; passes the full contract suite (13/13 scenarios, zero skips)
+- [x] End-to-end smoke: `shamu run --adapter echo` → events streamed to stdout + persisted to SQLite; `shamu status` + `shamu logs --json` round-trip the run
 
-**Exit:** `shamu run --adapter echo` round-trips a scripted session; CI green on lint+types+tests.
+**Exit:** ✅ `shamu run --adapter echo` round-trips a scripted session end-to-end; CI green on lint+types+tests+agent-ci across all 6 workspaces.
 
 ---
 
