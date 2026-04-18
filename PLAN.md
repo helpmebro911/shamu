@@ -710,8 +710,10 @@ The live end-to-end (`SHAMU_FLOW_LIVE=1`) smoke against real Claude + Codex CLIs
 ### Phase 6 — Linear integration
 
 **Track 6.A — Auth + client (Serial)**
-- [ ] OAuth 2.1 DCR flow against `mcp.linear.app/mcp`; token persistence (Keychain on macOS / libsecret on Linux)
-- [ ] Typed MCP client wrapper for the issue/comment/status tools actually used
+- [x] Personal-API-key auth against Linear's GraphQL API (`api.linear.app/graphql`); env-first with `@shamu/shared/credentials` persist-back (Keychain / libsecret). (Pivoted from OAuth 2.1 DCR at kickoff — see note below.)
+- [x] Typed GraphQL client wrapper for the issue / label / comment / status operations the canonical flow uses (`@shamu/linear-client`)
+
+> **6.A architecture note (2026-04-18):** PLAN originally scoped OAuth 2.1 DCR against the `mcp.linear.app/mcp` MCP server. The user provided a personal API key at kickoff, and GraphQL is a strict subset of what Phase 6 needs (issue read / label + comment + status mutations). OAuth DCR is deferred as a Phase 6 followup in HANDOFF.md — revisit if/when shamu is hosted multi-tenant. The credential-store coordinates (`LINEAR_CREDENTIAL_SERVICE` / `LINEAR_CREDENTIAL_ACCOUNT`) are exported so a future OAuth adapter can reuse or sibling them without migration.
 
 **Track 6.B — Webhook receiver (Parallel with 6.A)**
 - [ ] `packages/linear/webhook`: Bun HTTP server; signature verification
