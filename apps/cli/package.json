@@ -1,0 +1,26 @@
+{
+  "name": "@shamu/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shamu CLI — headless, scriptable entry point for the orchestrator. Commands scaffold the surface; wiring to supervisor/persistence/adapters lands in later phases.",
+  "bin": {
+    "shamu": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "shamu": "bun src/index.ts",
+    "build": "tsc --project tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "citty": "0.1.6",
+    "zod": "4.1.13"
+  }
+}
