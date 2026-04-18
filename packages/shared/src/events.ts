@@ -64,6 +64,12 @@ const sessionEndSchema = eventEnvelopeSchema.extend({
   reason: z.string(),
 });
 
+const reasoningSchema = eventEnvelopeSchema.extend({
+  kind: z.literal("reasoning"),
+  text: z.string(),
+  signature: z.string().optional(),
+});
+
 const assistantDeltaSchema = eventEnvelopeSchema.extend({
   kind: z.literal("assistant_delta"),
   text: z.string(),
@@ -134,6 +140,13 @@ const costSchema = eventEnvelopeSchema.extend({
   source: z.string(),
 });
 
+const rateLimitSchema = eventEnvelopeSchema.extend({
+  kind: z.literal("rate_limit"),
+  scope: z.enum(["minute", "hour", "day", "five_hour", "other"]),
+  status: z.enum(["ok", "warning", "exhausted"]),
+  resetsAt: z.number().int().nonnegative().nullable(),
+});
+
 const interruptSchema = eventEnvelopeSchema.extend({
   kind: z.literal("interrupt"),
   requestedBy: z.enum(["user", "supervisor", "watchdog", "flow"]),
@@ -157,6 +170,7 @@ const errorSchema = eventEnvelopeSchema.extend({
 export const agentEventSchema = z.discriminatedUnion("kind", [
   sessionStartSchema,
   sessionEndSchema,
+  reasoningSchema,
   assistantDeltaSchema,
   assistantMessageSchema,
   toolCallSchema,
@@ -168,6 +182,7 @@ export const agentEventSchema = z.discriminatedUnion("kind", [
   stderrSchema,
   usageSchema,
   costSchema,
+  rateLimitSchema,
   interruptSchema,
   turnEndSchema,
   errorSchema,
@@ -181,6 +196,7 @@ export type AgentEventKind = AgentEvent["kind"];
 export const AGENT_EVENT_KINDS: readonly AgentEventKind[] = [
   "session_start",
   "session_end",
+  "reasoning",
   "assistant_delta",
   "assistant_message",
   "tool_call",
@@ -192,6 +208,7 @@ export const AGENT_EVENT_KINDS: readonly AgentEventKind[] = [
   "stderr",
   "usage",
   "cost",
+  "rate_limit",
   "interrupt",
   "turn_end",
   "error",

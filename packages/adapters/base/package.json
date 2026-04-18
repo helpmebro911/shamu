@@ -1,0 +1,35 @@
+{
+  "name": "@shamu/adapters-base",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Adapter contract, subprocess helpers, path/shell gates, correlation, replay, and shared contract-test suite for Shamu vendor adapters.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./adapter": "./src/adapter.ts",
+    "./events": "./src/events.ts",
+    "./capabilities": "./src/capabilities.ts",
+    "./subprocess": "./src/subprocess.ts",
+    "./path-scope": "./src/path-scope.ts",
+    "./shell-gate": "./src/shell-gate.ts",
+    "./tool-result": "./src/tool-result.ts",
+    "./replay": "./src/replay.ts",
+    "./correlation": "./src/correlation.ts",
+    "./errors": "./src/errors.ts",
+    "./contract": "./src/contract/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@shamu/shared": "workspace:*",
+    "shell-quote": "1.8.3",
+    "zod": "4.1.13"
+  },
+  "devDependencies": {
+    "@types/shell-quote": "1.7.5"
+  }
+}

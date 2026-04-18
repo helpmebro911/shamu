@@ -8,7 +8,8 @@
   "author": "Chris Watson",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "packages/adapters/*"
   ],
   "scripts": {
     "lint": "biome check .",

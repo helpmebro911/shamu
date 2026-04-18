@@ -23,6 +23,7 @@ describe("AgentEvent schema", () => {
     const samples: Array<Record<string, unknown>> = [
       { ...envelope(), kind: "session_start", source: "spawn" },
       { ...envelope(), kind: "session_end", reason: "ok" },
+      { ...envelope(), kind: "reasoning", text: "let me think…", signature: "abc" },
       { ...envelope(), kind: "assistant_delta", text: "hi" },
       { ...envelope(), kind: "assistant_message", text: "done", stopReason: "end_turn" },
       { ...envelope(), kind: "tool_call", toolCallId: "c1", tool: "Read", args: { path: "x" } },
@@ -57,6 +58,13 @@ describe("AgentEvent schema", () => {
         cache: { hits: 1, misses: 0 },
       },
       { ...envelope(), kind: "cost", usd: 0.01, confidence: "exact", source: "vendor" },
+      {
+        ...envelope(),
+        kind: "rate_limit",
+        scope: "five_hour",
+        status: "warning",
+        resetsAt: 1_700_005_000_000,
+      },
       {
         ...envelope(),
         kind: "interrupt",
