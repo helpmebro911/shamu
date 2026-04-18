@@ -1,0 +1,28 @@
+{
+  "name": "@shamu/mailbox",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Trusted mailbox + file-lease primitives on top of @shamu/persistence: G6-enforced from_agent, stale-lease reclaim, pre-commit guard, transactional JSONL materialization.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./auth": "./src/auth.ts",
+    "./mailbox": "./src/mailbox.ts",
+    "./leases": "./src/leases.ts",
+    "./globs": "./src/globs.ts",
+    "./pre-commit": "./src/pre-commit.ts",
+    "./materialize": "./src/materialize.ts",
+    "./escalation": "./src/escalation.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=./coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@shamu/persistence": "workspace:*",
+    "@shamu/shared": "workspace:*"
+  }
+}

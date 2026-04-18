@@ -623,13 +623,13 @@ Three tracks fully parallel — none depends on the others' internals, only on P
 - [x] Lease-aware pre-commit hook installer (placeholder checker-path until the mailbox guard is wired in; installs to `GIT_DIR/shamu-hooks/pre-commit` via per-worktree `core.hooksPath` + `extensions.worktreeConfig` — git 2.50 ignores `GIT_DIR/hooks/` for secondary worktrees)
 - [x] **git 2.50 gotcha:** `-q` / `--quiet` banned pre-flight in the `runGit` wrapper for `revert` and `worktree prune` (throws `GitInvariantError`). Applies to every git subcommand invoked from this package.
 
-**Track 3.C — Mailbox & leases (Parallel)**
-- [ ] `packages/mailbox`: SQLite tables `mailbox` + `leases` (with `holder_run_id`, `holder_worktree_path`) as canonical store; `.shamu/mailbox/<agent>.jsonl` files as transactional materialized export (reconciled on boot)
-- [ ] `broadcast`, `whisper`, `read`, `mark_read` primitives — **`from_agent` assigned by the orchestrator from authenticated run context**, never from the writer's payload (G6)
-- [ ] Writes from a caller that doesn't own an active run are rejected server-side
-- [ ] TTL'd advisory leases keyed on glob; stale-lease reclaim runs `git status --porcelain --untracked-files=all --ignored=no` in the holder's worktree; non-empty output refuses reclaim + escalates; holder-worktree-missing also refuses + escalates
-- [ ] Pre-commit guard: reject commit if author doesn't hold a live lease covering every staged path
-- [ ] Contract tests: `from_agent` forgery rejected; two workers racing on same glob — one rejected; stale-lease reclaim with dirty holder refuses cleanly
+**Track 3.C — Mailbox & leases (Parallel)** ✅
+- [x] `packages/mailbox`: primitives layered on existing `@shamu/persistence` `mailbox` + `leases` tables (canonical store); `.shamu/mailbox/<agent>.jsonl` transactional materialized export with atomic rename + `fsync`; `reconcile(baseDir, db)` regenerates on boot
+- [x] `broadcast`, `whisper`, `read`, `markRead` primitives — public signatures accept no `from` parameter; `from_agent` is sourced exclusively from `AuthContext.agent` (G6 is a code-level invariant, not a convention)
+- [x] Writes require a present `AuthContext`; `UnauthenticatedWriteError` on an invalid context. Run-liveness validation is the orchestrator's job and deliberately not coupled into this package
+- [x] TTL'd advisory leases keyed on glob with `globsOverlap` (segment-walk with `**` backtracking + regex for star segments); `reclaimIfStale` runs `git status --porcelain --untracked-files=all --ignored=no -- <glob>` in the holder's worktree via `execFile` (no shell); non-empty output → `{ reclaimed: false, reason: "dirty_holder" }` + escalation; missing holder worktree → `holder_worktree_missing` + escalation
+- [x] Pre-commit guard: `checkStagedPaths` (pure) + `runPreCommitGuard` (shells `git diff --cached --name-only`)
+- [x] Contract tests: 52 tests across 7 files (auth / mailbox / leases / reclaim / pre-commit / materialize / globs); `from_agent` forgery rejected at the type level, racing-lease one-wins, stale-lease-with-dirty-holder refuses cleanly
 
 **Track 3.D — Watchdog (Serial after 3.A supervisor + any adapter emitting `checkpoint` events)**
 - [ ] `packages/watchdog`: out-of-process Bun subprocess, shares SQLite read-only
