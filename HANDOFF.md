@@ -1,21 +1,20 @@
 # Shamu — Session Handoff
 
-**Last updated:** 2026-04-18 (Phase 5 closed out; owed manual steps done; PR-based workflow in place; cleared for Phase 6 kickoff).
+**Last updated:** 2026-04-18 (Phase 6 partial: 6.A + 6.B landed via PR #3 + #4; 6.C + 6.D next).
 
 Any fresh session starts here. Load the `shamu-dev` skill (`.claude/skills/shamu-dev/SKILL.md`) to get the full pipeline; this file is the snapshot of *where we are right now*.
 
 ## TL;DR
 
-Phase 5 (agent-ci gate) is ✅ at the unit+integration layer AND both previously-owed manual steps are green:
+Phase 6 kicked off and is half-landed:
 
-- Phase 4.B `SHAMU_FLOW_LIVE=1` smoke ran and passed (scripted-green `__ciRunOverride` landed in `cc71897` so the scratch tmp dir doesn't have to be a git repo for CI bootstrap).
-- `scripts/setup-branch-protection.sh` applied against `watzon/shamu`. Active protections on `main`: `required_status_checks=["ubuntu-latest"]` (see below on context-name fix), `required_signatures=true`, `required_linear_history=true`, `allow_force_pushes=false`, `required_approving_review_count=0` (see below on self-review). SSH-key signing configured locally (`gpg.format=ssh`, `commit.gpgsign=true`, key registered as `--type signing` on GitHub) so all future commits satisfy `required_signatures`.
-- `origin` set to `git@github.com:watzon/shamu.git`; initial push of 38 commits landed as the main-branch history.
-- **Adoption artifacts (PR #1 and PR #2):** the first attempted push through the now-protected `main` surfaced two script bugs that PR #2 also fixed in-place: (1) the required-status-check context was set to `"CI / ubuntu-latest"` (the PR UI display name), but GitHub Actions reports the check-run name as just `"ubuntu-latest"` — the load-bearing gate was never actually matching any check, so "required_status_checks" was de-facto silently off. Script now uses `"ubuntu-latest"`; (2) `required_approving_review_count=1` deadlocks a solo-author-plus-solo-reviewer repo (GitHub blocks self-approval by default). Script now uses `0` with a rationale comment; the `ubuntu-latest` check is the real quality bar.
+- **Phase 6.A** (`@shamu/linear-client`) shipped via **PR #3 → `d095040`** — typed Linear GraphQL client for the operations the canonical flow uses (issue read, label add/remove, comment create/update, status change) + env-first personal-API-key resolver with `@shamu/shared/credentials` persist-back. **Pivoted from PLAN's OAuth 2.1 DCR scope** to personal-API-key + GraphQL at kickoff; the user supplied a personal key and GraphQL is a strict subset of what we need. OAuth DCR is deferred as a followup (see #1 below); credential-store coordinates exported so a future OAuth adapter can sibling the same account row without migration.
+- **Phase 6.B** (`@shamu/linear-webhook`) shipped via **PR #4 → `a540946`** — Bun HTTP receiver with HMAC-SHA256 + ±5-min timestamp window + 10-min nonce-LRU replay protection, typed event union for `issue-label-added` / `comment-created` / `status-changed`, and the `shamu linear tunnel` cloudflared wrapper (scope enforced at the listener: 404 for every non-`/webhooks/linear` route; cloudflared itself can't path-filter).
+- **No runtime dependency between the two** — 6.C will wire both into `@shamu/core-composition`.
 
-**Workflow note:** `main` is protected. All future changes land via feature branch → PR → squash-merge (rebase-merges can't be auto-signed by GitHub and fail `required_signatures`). See the `shamu-dev` skill's "Commit + land" section for the updated pipeline.
+17 workspace packages (adds `@shamu/linear-client` + `@shamu/linear-webhook`), 977 tests (+113: 53 from 6.A, 60 from 6.B; CLI test count unchanged — one stub test rewritten in place).
 
-`@shamu/ci` lifts the Phase 0.D spike into production; the canonical flow gates approval on green CI as a structural property (new `ci` DAG node, verdict schema extended with `requires_ci_rerun`, reviewer auto-overrides approve-on-red); the watchdog has a per-role CI-failure tripwire. Phase 6 (Linear integration) is next and unblocked. Nothing in flight. 15 workspace packages, 864 tests (+86 since end of Phase 4).
+**Workflow is stable:** 6.A and 6.B both used the post-Phase-5 pattern — feature branch → PR → squash-merge with `ubuntu-latest` green. Both merges auto-signed by GitHub via web-flow. Agents worked in the main working tree on non-overlapping paths; parent split into sibling branches at review time via `git worktree add ... origin/main` per PR (cleanest way to isolate each branch's `bun.lock`).
 
 ## Read-first order for a fresh session
 
@@ -32,129 +31,129 @@ Phase 5 (agent-ci gate) is ✅ at the unit+integration layer AND both previously
 | 1 | Foundations | ✅ all 5 tracks |
 | 2 | Claude + Codex adapters | ✅ all 3 tracks |
 | 3 | Supervisor, worktrees, mailbox, watchdog | ✅ 4/4 tracks |
-| 4 | Plan → Execute → Review flow + composition | ✅ 4/4 tracks; live smoke ran green (`cc71897` override) |
-| 5 | agent-ci gate | ✅ 3/3 tracks (5.A/5.B/5.C); branch protection applied on `watzon/shamu`; CI-tripwire wiring still owed as Phase 6 followup #9 |
-| 6 | Linear integration | ⬜ next (cleared to start) |
+| 4 | Plan → Execute → Review flow + composition | ✅ 4/4 tracks |
+| 5 | agent-ci gate | ✅ 3/3 tracks; branch protection applied |
+| 6 | Linear integration | **partial: 6.A ✅ (#3), 6.B ✅ (#4); 6.C + 6.D next** |
 | 7 | Adapter fan-out + web dashboard + egress broker | ⬜ |
 | 8 | Autonomous mode + A2A + ops polish | ⬜ |
 
-## Workspace packages (end of Phase 5)
+## Workspace packages (Phase 6.A + 6.B landed)
 
-15 packages. Phase 5 adds **`@shamu/ci`**; Phase 5.B modifies `@shamu/flows-plan-execute-review`; Phase 5.C extends `@shamu/watchdog`.
+17 packages. Phase 6.A adds **`@shamu/linear-client`**; Phase 6.B adds **`@shamu/linear-webhook`** and rewires `shamu linear tunnel` from its Phase-1 stub to a real `startTunnel` call.
 
-- `@shamu/shared` — events/IDs/Result/logger/credentials/redactor/errors/capabilities
+- `@shamu/shared` — events/IDs/Result/logger/**credentials** (now referenced by linear-client)/redactor/errors/capabilities
 - `@shamu/persistence` — SQLite schema, migrations (v1 + v2 `flow_runs`), HMAC-chained audit, prepared-statement queries
-- `@shamu/adapters-base` — contract, subprocess + Node-drain + JSONL, path-scope, shell AST gate, replay, contract suite, T17 cost-stamping helper
-- `@shamu/adapter-echo` — in-memory reference adapter (13/13 contract)
-- `@shamu/adapter-claude` — production adapter on `@anthropic-ai/claude-agent-sdk@0.2.113` (13/13 contract, T9 cache-key pinned, in-process MCP)
-- `@shamu/adapter-codex` — production adapter on `@openai/codex-sdk@0.121.0` (13/13 contract, snapshot pinned, API-key + ChatGPT-OAuth paths)
-- `@shamu/cli` — `shamu run` / `shamu resume` / `shamu flow run` / `shamu flow status`, NDJSON telemetry, flow-module loader (Phase 4.C)
-- `@shamu/core-supervisor` — OTP-shaped Supervisor/Swarm/EventBus + intensity tracker + `EscalationRaised` bus (Phase 3.A)
-- `@shamu/worktree` — per-run git worktree lifecycle + GC + per-worktree `pre-commit` hook via `core.hooksPath` (Phase 3.B + 4.D test)
-- `@shamu/mailbox` — trusted mailbox + lease primitives (G6 `from_agent` auth, stale-lease reclaim, materialized JSONL export) (Phase 3.C)
-- `@shamu/watchdog` — out-of-process Bun subprocess, four confidence-labeled signals, two-observation agreement rule, **per-role CI-failure tripwire (Phase 5.C)**
-- `@shamu/core-flow` — typed, serializable, resumable DAG workflow engine with content-hash dedupe and cost roll-up (Phase 4.A)
-- `@shamu/flows-plan-execute-review` — canonical plan → execute → **ci** → review flow (Phase 5.B); reviewer sees CI summary + excerpt; verdict enum `{approve, revise, requires_ci_rerun}`; red-CI forces auto-revise; `FLOW_VERSION: 2`
-- `@shamu/core-composition` — cross-primitive glue: EscalationEmitter shim + persistenceReadRun driver + diffOverlapCheck helper (Phase 4.D)
-- **`@shamu/ci`** — `@redwoodjs/agent-ci` wrapper: Bun.spawn driver, run-dir discovery via pre/post diff, parse-run-state/parse-step-log extractors (TAP-13 + ESLint-stylish + tail), ANSI strip, deterministic reviewer excerpt, `CIRed` / `PatchReady` domain-event projection, 3 Phase 0.D fixtures as byte-identical replay snapshots (Phase 5.A)
+- `@shamu/adapters-base`, `@shamu/adapter-echo`, `@shamu/adapter-claude`, `@shamu/adapter-codex` — adapter contract + production adapters
+- `@shamu/cli` — **now wires `shamu linear tunnel` through `@shamu/linear-webhook`**; unchanged elsewhere
+- `@shamu/core-supervisor`, `@shamu/worktree`, `@shamu/mailbox`, `@shamu/watchdog` — Phase 3 primitives
+- `@shamu/core-flow`, `@shamu/flows-plan-execute-review`, `@shamu/core-composition` — Phase 4 flow engine + canonical plan → execute → ci → review flow
+- `@shamu/ci` — Phase 5 agent-ci wrapper + CI domain events
+- **`@shamu/linear-client` (NEW, Phase 6.A)** — personal-API-key resolver (env-first, credential-store persist-back) + typed `LinearClient` covering `getIssue` / `listLabels` / `listStates` / `addLabel` / `removeLabel` / `createComment` / `updateComment` / `setIssueStatus`; per-team label/state name→id caches; `Result<T, LinearError>` returns; rate-limit detection covers both 429+Retry-After and Linear's documented 400+RATELIMITED+X-RateLimit-*-Reset shape
+- **`@shamu/linear-webhook` (NEW, Phase 6.B)** — HMAC-SHA256 verify (constant-time via `node:crypto.timingSafeEqual`) + timestamp-window + nonce-LRU; typed event discriminated union (`issue-label-added | comment-created | status-changed`); server surfaces events via async iterator on `handle.events`; `startTunnel` wraps cloudflared with injectable `spawnImpl`; `TunnelBootError` when `cloudflared` is absent
 
-864 tests across 15 packages (+86 over end-of-Phase-4): `@shamu/ci` 76 passing + 1 live-skipped, `@shamu/flows-plan-execute-review` 50 passed + 1 skipped (was 35+1), `@shamu/watchdog` 75 passed (includes 11 new ci-tripwire tests).
+977 tests across 17 packages (+113 over end-of-Phase-5): `@shamu/linear-client` 53 (auth 11 / errors 12 / client 30), `@shamu/linear-webhook` 60 (verify 21 / events 15 / server 14 / tunnel 10). CLI test count unchanged (one stub-assertion test rewritten to the cloudflared-missing error path).
 
 ## What's in flight
 
-Nothing. Phase 5 fully committed (commits `bfee0c3`, `53b66c8`, `1318f06`, `f59e6eb`, plus the post-close Phase 5 followup `cc71897` smoke-override and two gitnexus banner refreshes).
+Nothing. 6.A + 6.B fully merged. 6.C + 6.D not started.
 
 ## Owed manual steps
 
-None. Both prior owed steps are green:
+None.
 
-1. ~~Phase 4.B `SHAMU_FLOW_LIVE=1` smoke~~ — ran and passed after `cc71897` added a scripted-green `__ciRunOverride` so the scratch tmp dir doesn't need to be a git repo for agent-ci bootstrap. The "richer live gate smoke" (Phase 5.A followup #4) against real workflows is still a separate, lower-priority future exercise.
-2. ~~`scripts/setup-branch-protection.sh`~~ — applied against `watzon/shamu`. `origin` remote set to `git@github.com:watzon/shamu.git`; initial push of 38 commits landed; SSH-key signing configured locally so future commits to `main`/`shamu/integration/*` meet the `required_signatures` rule.
+## Phase 6 remaining (from PLAN.md)
 
-## Phase 6 plan (from PLAN.md)
+**Track 6.C — Work-intake conventions (Serial after 6.A + 6.B):**
+- Labels `shamu:ready` / `shamu:in-progress` / `shamu:review` / `shamu:blocked`.
+- Rolling-comment updater (one comment per run, edited in place with checkpoint appends).
+- PR link as Linear attachment on completion.
+- Escalation path: watchdog-trip (including **`WatchdogCiTripwire` events from Phase 5.C — followup #9 below is the blocking prerequisite**) flips status to `shamu:blocked` + incident-summary comment.
 
-**Tracks:**
-- **6.A Auth + client (Serial)** — OAuth 2.1 DCR against `mcp.linear.app/mcp`; token persistence via `@shamu/shared/credentials` (Keychain on macOS, libsecret on Linux); typed MCP client wrapper for the issue/comment/status tools actually used.
-- **6.B Webhook receiver (Parallel with 6.A)** — `packages/linear/webhook`: Bun HTTP server + HMAC signature verification + timestamp-window + nonce-cache replay protection. `shamu linear tunnel` wraps cloudflared scoped to `/webhooks/linear` only (G10). Subscribe to `issue-label-added`, `comment-created`, `status-changed`.
-- **6.C Work-intake conventions (Serial after 6.A + 6.B)** — Labels `shamu:ready` / `shamu:in-progress` / `shamu:review` / `shamu:blocked`. Rolling-comment updater (one comment per run, edited in place with checkpoint appends). PR link as Linear attachment on completion. Escalation path: watchdog-trip (including **new `watchdog.ci_tripwire` events from 5.C**) flips status to `shamu:blocked` + incident-summary comment.
-- **6.D Integration test (Serial after 6.C)** — E2E against a throwaway Linear workspace: label → pickup → PR → status flip.
+**Track 6.D — Integration test (Serial after 6.C):**
+- E2E against a throwaway Linear workspace: label → pickup → PR → status flip. Linear personal API key is in `.env` at repo root (gitignored). Webhook path uses `shamu linear tunnel` + cloudflared.
 
 **Exit:** a Linear issue with `shamu:ready` gets picked up, worked, and ends with a PR link + status flip, entirely webhook-driven.
 
-Natural hook points Phase 5 leaves ready for Phase 6:
-- `@shamu/ci.toDomainEvent` already emits `CIRed` / `PatchReady` — Phase 6's Linear sink subscribes to the same bus the `EscalationEmitter` feeds, so no new event taxonomy is needed.
-- Phase 5.C's `WatchdogCiTripwire` event is already structurally compatible with the supervisor bus; wiring it through is 6.C's escalation-path plumbing combined with the Phase 5.C followup (#1 below).
+## Followups to absorb in 6.C / 6.D / later
 
-## Followups to absorb in Phase 6 (or later)
+### From Phase 6.A (new)
 
-### From Phase 5.A
+1. **OAuth 2.1 DCR against `mcp.linear.app/mcp`** — deferred at 6.A kickoff. Revisit when shamu is hosted multi-tenant. Credential-store coordinates (`LINEAR_CREDENTIAL_SERVICE` / `LINEAR_CREDENTIAL_ACCOUNT`) are stable + exported so a future OAuth adapter can sibling the same account row.
+2. **Rate-limit shape monitoring** — Linear's current rate-limit response is HTTP 400 (not 429) with `extensions.code: RATELIMITED` + `X-RateLimit-Requests-Reset`. `@shamu/linear-client` handles both conventions, but callers that inspect `LinearError.detail.status` must not assume 429.
+3. **First caller not yet wired** — `@shamu/linear-client` has no consumers yet. 6.C plugs it into `@shamu/core-composition` (or a new `packages/linear/integration`).
 
-1. **Artifact capture to SQLite** — PLAN bullet left unticked. `GateResult.runDir` exists; a persistence surface is needed (either a new `run_artifacts` table or reuse of a `run-metadata` column once one lands). Schema migration was scoped out of 5.A.
-2. **Redactor pass on CI excerpts** — `@shamu/shared/redactor` exists but isn't wired into `buildReviewerExcerpt`. Step logs may contain planted secrets. Seam is `parseRunState`'s `summarizeJob` boundary; requires threading a `Redactor` through `readStepLog`. Skipped to keep 5.A byte-identical to the spike snapshots.
-3. **Agent-ci programmatic abort** — `@shamu/ci/gate.ts` interrupt path SIGTERMs the child; `@redwoodjs/agent-ci@0.10.7` does not expose a programmatic `abort()`. If a future release adds one, swap the SIGTERM for the official call.
-4. **Richer live gate smoke** — `gate.test.ts`'s `SHAMU_CI_LIVE=1` block is an exit-code check only. Extend once a human is watching it.
+### From Phase 6.B (new)
 
-### From Phase 5.B
+4. **Async-iterator event surface is unbounded** — `handle.events` buffers without back-pressure. 6.C should drain continuously or cap via drop-oldest when wiring into the supervisor bus.
+5. **In-memory nonce cache** — survives only a single process. Cross-process replay protection would need a `webhook_nonces` table in `@shamu/persistence` with TTL pruning. Low priority until the Phase 8 daemon.
+6. **Linear `AgentSessionEvent` subscription** — not in the current typed union. Phase 7 may want agent-session routing once adapter fan-out lands.
+7. **Live cloudflared smoke** — `tunnel.test.ts` mocks `spawnImpl`. A `SHAMU_LINEAR_LIVE=1` gate that spawns real cloudflared against a loopback server would exercise the full path end-to-end.
+8. **WebCrypto swap** — we use `node:crypto.timingSafeEqual` for sync ergonomics; if a non-Bun runtime ever enters scope, swap to Web Crypto. Not a concern while we're Bun-only.
 
-5. **`CINodeOutput` cast safety on rehydration** — `extractPriorCiOutput` carries `CIRunSummary` via a cast past `.passthrough()`. If persistence ever serializes + rehydrates `NodeOutput.value`, the cast becomes unsafe. Revisit when flow-run resumability tests exercise CI output.
-6. **Engine-side Loop body re-execution** — carried from Phase 4.A. Once the engine re-invokes body nodes per iteration, collapse the reviewer-internal revise loop; `loopNode.body=[execute, ci, review]` is already self-describing and ready. The reviewer's `iterationCounters` Map becomes dead code.
-7. **Persistence `flow_run_id` ↔ CI run linkage** — the `ci` runner emits `CINodeOutput` but doesn't thread `flowRunId` into CI's `runId` namespace. Observability correlation is a separate migration job (similar to followup #12 from Phase 4.C).
-8. **RFC upstream filing** — `docs/phase-5/rfc-report-json.md` is a draft. User owns whether to file on `@redwoodjs/agent-ci`.
+### Carried from Phase 5.A (still open)
 
-### From Phase 5.C
+9. **Artifact capture to SQLite** (PLAN bullet unticked). `GateResult.runDir` exists; needs a `run_artifacts` table or a reuse of an eventual `run-metadata` column. Schema migration scoped out of 5.A.
+10. **Redactor pass on CI excerpts** — `@shamu/shared/redactor` not wired into `buildReviewerExcerpt`. Seam is `parseRunState`'s `summarizeJob` boundary.
+11. **Agent-ci programmatic abort** — swap SIGTERM for official `abort()` when `@redwoodjs/agent-ci` exposes one.
+12. **Richer live gate smoke** — `gate.test.ts`'s `SHAMU_CI_LIVE=1` block is exit-code only.
 
-9. **CI-tripwire caller wiring (blocking for live use).** `@shamu/watchdog/ci-tripwire` is the mechanism; nothing calls `observe()` yet. `@shamu/core-composition` is the natural home — match the EscalationEmitter shim pattern. It needs to: (a) instantiate `createCiTripwire({ emitter })` per flow-run (or per-process with `reset()` on flow boundaries), (b) subscribe to CI domain events (`CIRed` / `PatchReady` from `@shamu/ci` or `CINodeOutput.summary.status` from the flow), (c) forward `emitCiTripwire` → supervisor bus (parallel to the existing `WatchdogAlert` → `EscalationRaised` wiring). Best landed at the start of Phase 6 since the Linear sink consumes the same event bus.
-10. **`shellcheck` gate in CI** — not installed locally during 5.C; if `scripts/setup-branch-protection.sh` grows, add shellcheck as a workflow step on ubuntu-latest.
-11. **Branch-protection script idempotency proof** — dry-run only verifies payload shapes; a future exercise re-runs against a sandbox repo to confirm PUT-over-existing-ruleset semantics in practice.
+### Carried from Phase 5.B
 
-### Carried from earlier phases (still non-blocking)
+13. **`CINodeOutput` cast safety on rehydration** — revisit when flow-run resumability tests exercise CI output.
+14. **Engine-side Loop body re-execution** (inherited from 4.A) — once the engine re-invokes body nodes per iteration, collapse the reviewer-internal revise loop.
+15. **Persistence `flow_run_id` ↔ CI run linkage** — observability correlation is a separate migration job.
+16. **RFC upstream filing** — `docs/phase-5/rfc-report-json.md` draft. User owns whether to file on `@redwoodjs/agent-ci`.
 
-12. **ParallelFanOut + Join node kinds** (4.A) — flow engine is sequential-only.
-13. **Per-iteration Loop body execution** (4.A) — see #6; same root cause.
-14. **Skipped-branch status propagation** (4.A) — conditional-skipped nodes remain `pending`.
-15. **Richer `flow status` output** (4.C) — per-node cost breakdown + event replay.
-16. **Flow discovery** (4.C) — `shamu flow run <name>` without explicit module-spec (registry/config file).
-17. **Progress streaming** (4.C) — intra-node progress surfaced via the NDJSON sink.
-18. **Paused exit code** (4.C) — taxonomy lacks a `NEEDS_HUMAN` code.
-19. **Extend `EscalationCause`** (4.D) — add `"watchdog_agreement"` + `"lease_reclaim_refused"` + (new for Phase 5.C) `"ci_tripwire"` variants so sinks can switch on shape rather than parse `reason`.
-20. **TTL-refresh API on leases** (3.C) — `renewLease` for long-running executors.
-21. **Recipient-list expansion in `mailbox.broadcast`** (3.C) — requires a "who's in this swarm now?" helper.
-22. **Non-`main` base-branch discovery** (3.B) — `worktree.createWorktree` trusts the caller's `baseBranch`; a helper for `origin/HEAD` removes the hardcoding.
-23. **Subprocess auto-restart for the watchdog** (3.D) — `spawnWatchdogSubprocess` has no liveness poll.
-24. **Phase 0 fixture regeneration** (2.x) — capture scripts predate production adapters; rewrite once a live auth path is available.
-25. **Resume-through-expired-session E2E coverage** (2.x).
-26. **`shamu cost <run-id>` subcommand** (2.x) — `emitRunCostSummary` ready to reuse.
-27. **Live subprocess real-spawn coverage in `adapters-base`** (2.x) — `SHAMU_CLAUDE_LIVE=1` closes the gap.
+### Carried from Phase 5.C (blocking for 6.C)
+
+17. **CI-tripwire caller wiring** — `@shamu/watchdog/ci-tripwire` mechanism exists; nothing calls `observe()` yet. `@shamu/core-composition` is the natural home — instantiate `createCiTripwire({ emitter })` per flow-run, subscribe to `CIRed` / `PatchReady` (or `CINodeOutput.summary.status` from the flow), forward `emitCiTripwire` → supervisor bus. **This is a direct 6.C prerequisite** since the Linear sink needs `watchdog.ci_tripwire` → `shamu:blocked` status flips.
+18. **`shellcheck` gate in CI** — not installed locally during 5.C; if `scripts/setup-branch-protection.sh` grows, add shellcheck on ubuntu-latest.
+19. **Branch-protection script idempotency proof** — dry-run only verifies payload shapes.
+
+### Carried from earlier phases (non-blocking)
+
+20. **ParallelFanOut + Join node kinds** (4.A).
+21. **Skipped-branch status propagation** (4.A).
+22. **Richer `flow status` output** (4.C).
+23. **Flow discovery** (4.C) — `shamu flow run <name>` without explicit module-spec.
+24. **Progress streaming** (4.C).
+25. **Paused exit code** (4.C) — taxonomy lacks `NEEDS_HUMAN`.
+26. **Extend `EscalationCause`** (4.D) — add `"watchdog_agreement"` + `"lease_reclaim_refused"` + `"ci_tripwire"` variants.
+27. **TTL-refresh API on leases** (3.C).
+28. **Recipient-list expansion in `mailbox.broadcast`** (3.C).
+29. **Non-`main` base-branch discovery** (3.B).
+30. **Subprocess auto-restart for the watchdog** (3.D).
+31. **Phase 0 fixture regeneration** (2.x).
+32. **Resume-through-expired-session E2E coverage** (2.x).
+33. **`shamu cost <run-id>` subcommand** (2.x).
+34. **Live subprocess real-spawn coverage in `adapters-base`** (2.x).
 
 ## Open questions for the user
 
-None blocking. (PLAN's "Remaining open questions" empty since 2026-04-18 A2A decision.)
+None blocking.
 
 ## Already-answered decisions (don't re-litigate)
 
-See prior HANDOFF entries; nothing re-litigated in Phase 5. Phase 5 additions:
+Phase 6 additions:
 
-- **DAG shape** — `plan → execute → ci → review → loop`. CI is its own node; reviewer reads `ctx.priorOutputs.ci`; reviewer's internal re-execute loop also re-runs CI so every iteration sees a fresh result.
-- **Verdict enum** — `{approve, revise, requires_ci_rerun}`. Red-CI + approve → reviewer runner auto-rewrites to revise with a synthetic feedback prefix + synthetic concern.
-- **`FLOW_VERSION: 2`** — bumped from 1; persistence keys resumability on it.
-- **CI node `maxRetries: 0`** — agent-ci has its own workflow-level retry; boot failures aren't retriable at the DAG layer. Flip the constant if live use disagrees.
-- **Excerpt contract is `string` (not structured)** — keeps the fixture snapshots and the domain-event projection byte-identical-comparable.
-- **Env allowlist for agent-ci subprocess** — `PATH`, `HOME`, `LANG`, `USER`, `GITHUB_REPO`, plus caller-forwarded entries. No blanket `process.env`.
-- **`GITHUB_REPO` resolution order** — caller's `env.GITHUB_REPO` > caller's `opts.githubRepo` > `git remote get-url origin` parsed (GitHub-only; non-GitHub remotes are user error).
-- **CI tripwire is parallel to the agreement buffer, not inside it** — same-signal, cross-run, per-role counter is a different temporal shape than the two-signal agreement rule. Lives in `@shamu/watchdog/ci-tripwire.ts` with its own event kind.
-- **`emitCiTripwire` is OPTIONAL on `WatchdogEmitter`** — emitter falls back to `emit`; existing emitters don't need a coordination commit.
-- **Branch protection is user-applied, not code-driven** — `scripts/setup-branch-protection.sh` is the delivery vehicle.
-- **CI workflow actions SHA-pinned** — `actions/checkout@v4 → 34e11487...`, `oven-sh/setup-bun@v2 → 0c5077e5...`, `actions/upload-artifact@v4 → ea165f8d...`. Tag comments next to each SHA.
-- **Required status check name `CI / ubuntu-latest`** — load-bearing for `scripts/setup-branch-protection.sh`. Renaming the matrix job breaks the gate.
+- **6.A auth path** — personal API key + GraphQL instead of OAuth 2.1 DCR. User-provided key; GraphQL is a strict subset of the operations the canonical flow uses; single-tenant shamu doesn't benefit from DCR. OAuth DCR is deferred as a followup (see #1 above).
+- **Linear API endpoint** — `https://api.linear.app/graphql`. Authorization header is the bare API key (Linear personal-key convention — no `Bearer ` prefix; enforced by a test).
+- **Credential storage** — `@shamu/shared/credentials` under service `shamu`, account `linear-api-key`. Env-first (caller-wired, library never reads `process.env` on its own); persist-back only when the stored value differs; store failures are non-fatal with a logger hook.
+- **Rate-limit handling** — `@shamu/linear-client` normalises both 429+Retry-After and Linear's 400+`extensions.code: RATELIMITED` shapes into `LinearError.detail.retryAfterSeconds` / `resetAtMs`. No retries inside the client; callers own the policy.
+- **6.B event surface** — async iterator on `handle.events` (unbounded, FIFO). Back-pressure lives with the consumer (supervisor bus in 6.C). Callback-API decision rejected as redundant; a callback shim over the iterator is trivial if 6.C disagrees.
+- **Unsupported event types → 202** — accept-and-drop so Linear stops retrying; they aren't surfaced to consumers. Logged at `info`.
+- **Webhook path scope enforcement** — receiver 404s every non-`/webhooks/linear` route (cloudflared can't filter by path; scope enforcement is the listener's job per G10).
+- **Timestamp tolerance** — ±5 min (`DEFAULT_TIMESTAMP_SKEW_MS = 300_000`). Linear's `webhookTimestamp` lives in the body, not a header.
+- **Nonce cache shape** — in-memory `Map`, `maxEntries=10_000`, `windowMs=10 min`, insertion-order LRU, lazy expiry. Persistence deferred (followup #5).
+- **Workspace glob** — root `package.json` adds `packages/linear/*`. Future Linear-related packages (e.g. `packages/linear/integration` in 6.C) slot in automatically.
+
+Historical Phase 5 decisions still hold (DAG shape `plan → execute → ci → review → loop`; verdict enum `{approve, revise, requires_ci_rerun}`; `FLOW_VERSION: 2`; CI node `maxRetries: 0`; env allowlist for agent-ci subprocess; `GITHUB_REPO` resolution order; CI tripwire parallel to agreement buffer; `emitCiTripwire` optional on `WatchdogEmitter`; branch protection user-applied; CI workflow actions SHA-pinned; required status check `ubuntu-latest`).
 
 ## Pointers
 
-- `PLAN.md` — architecture + phased delivery + decisions + open questions
-- `PLAN_REVIEW.md` — adversarial review (historical; shows why choices stand)
-- `docs/phase-0/*.md` — spike writeups, go/no-go findings, evidence
-- `docs/phase-5/rfc-report-json.md` — upstream RFC draft for `@redwoodjs/agent-ci --report=json` (Phase 5.B)
-- `scripts/setup-branch-protection.sh` + `scripts/README.md` — branch-protection apply (Phase 5.C)
-- `.github/workflows/ci.yml` — required status check (name load-bearing)
+- `PLAN.md` — architecture + phased delivery + decisions + open questions (Phase 6 Track 6.A bullets now ticked with the pivot note; 6.B bullets ticked)
+- `.env` at repo root (gitignored) — holds `LINEAR_API_KEY` for local dev
+- `packages/linear/client/` + `packages/linear/webhook/` — Phase 6.A + 6.B deliverables
 - `.claude/skills/shamu-dev/SKILL.md` — the pipeline (load at session start)
 - `AGENTS.md` / `CLAUDE.md` — GitNexus-generated code context
 - `git log` — every phase has a detailed body
