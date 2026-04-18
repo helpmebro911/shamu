@@ -699,9 +699,9 @@ The live end-to-end (`SHAMU_FLOW_LIVE=1`) smoke against real Claude + Codex CLIs
 - [x] Soft RFC filed upstream for `@redwoodjs/agent-ci --report=json` flag (non-blocking) — draft at `docs/phase-5/rfc-report-json.md`; user owns upstream filing
 
 **Track 5.C — Quality bars (Serial after 5.A + 5.B)**
-- [ ] Per-role CI-failure counter; watchdog tripwire on three consecutive reds
-- [ ] `agent-ci.yml` for this repo — required on all shamu PRs
-- [ ] GitHub branch protection on `main` + `shamu/integration/*`: required `agent-ci` status check, signed-commit requirement, linear-history requirement. A local `--no-verify` simply leaves the required status missing — the rule does the work
+- [x] Per-role CI-failure counter; watchdog tripwire on three consecutive reds (`@shamu/watchdog/ci-tripwire` — factory + `WatchdogCiTripwire` event; caller wiring in `@shamu/core-composition` is a followup)
+- [x] `agent-ci.yml` for this repo — required on all shamu PRs (workflow at `.github/workflows/ci.yml` already in place; Phase 5.C SHA-pinned the third-party actions and added a header documenting the required-check name is load-bearing for the branch-protection script)
+- [x] GitHub branch protection on `main` + `shamu/integration/*`: required `agent-ci` status check, signed-commit requirement, linear-history requirement. A local `--no-verify` simply leaves the required status missing — the rule does the work. (Delivered as `scripts/setup-branch-protection.sh` with `--dry-run`; user owns the live-repo API call.)
 
 **Exit:** swarm run cannot mark a patch "approved" without green `agent-ci`; shamu's own repo enforces the same gate on itself.
 

@@ -9,6 +9,8 @@
 export type { AgreementBufferOptions, IngestResult } from "./agreement.ts";
 export { AgreementBuffer } from "./agreement.ts";
 export { canonicalizeArgs } from "./canonicalize.ts";
+export type { CiTripwire, CiTripwireObservation, CiTripwireOptions } from "./ci-tripwire.ts";
+export { createCiTripwire } from "./ci-tripwire.ts";
 export type { WatchdogEmitter, WatchdogEvent } from "./events.ts";
 export { noopEmitter } from "./events.ts";
 export { evaluateCheckpointLag, evaluateRunCheckpointLag } from "./signals/checkpoint-lag.ts";
@@ -32,6 +34,7 @@ export type {
   Observation,
   SignalKind,
   WatchdogAlert,
+  WatchdogCiTripwire,
   WatchdogConfig,
   WatchdogHint,
   WriteToolAllowlist,

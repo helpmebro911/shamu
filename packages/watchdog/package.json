@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./agreement": "./src/agreement.ts",
     "./canonicalize": "./src/canonicalize.ts",
+    "./ci-tripwire": "./src/ci-tripwire.ts",
     "./events": "./src/events.ts",
     "./store": "./src/store.ts",
     "./subprocess": "./src/subprocess.ts",

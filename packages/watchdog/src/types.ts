@@ -103,6 +103,28 @@ export interface WatchdogAlert {
 }
 
 /**
+ * CI tripwire event — emitted by the cross-run, per-role CI-failure
+ * counter when `threshold` consecutive red CI outputs have been observed
+ * for the same role. Structurally parallel to `WatchdogAlert` (not a
+ * member of the same agreement channel): the tripwire is a counter
+ * across runs, not a two-signal agreement within one run.
+ *
+ * `runIds` is ordered oldest-first: `runIds[0]` is the earliest red in
+ * the streak that fired the tripwire, `runIds[threshold - 1]` is the
+ * most recent. Consumers can render "red streak from <first> through
+ * <last>" without re-sorting.
+ */
+export interface WatchdogCiTripwire {
+  readonly kind: "watchdog.ci_tripwire";
+  readonly role: string;
+  readonly runIds: readonly RunId[];
+  readonly at: number;
+  readonly threshold: number;
+  readonly reason: string;
+  readonly detail: Readonly<Record<string, unknown>>;
+}
+
+/**
  * Vendor-aware write-tool allowlist. PLAN §6 specifies Claude
  * (`Edit|Write|Bash`) and Codex (`apply_patch|shell`); additional
  * adapters drop into the same shape.
