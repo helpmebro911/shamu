@@ -1,0 +1,31 @@
+{
+  "name": "@shamu/core-composition",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cross-primitive composition glue for Shamu: escalation-emitter shim (mailbox + watchdog → supervisor bus), persistence-read-run driver for worktree GC, and diff-overlap check for the patch lifecycle integrate step.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./escalation-emitter": "./src/escalation-emitter.ts",
+    "./persistence-read-run": "./src/persistence-read-run.ts",
+    "./diff-overlap": "./src/diff-overlap.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=./coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@shamu/core-supervisor": "workspace:*",
+    "@shamu/mailbox": "workspace:*",
+    "@shamu/persistence": "workspace:*",
+    "@shamu/shared": "workspace:*",
+    "@shamu/watchdog": "workspace:*",
+    "@shamu/worktree": "workspace:*"
+  },
+  "devDependencies": {
+    "@shamu/adapter-echo": "workspace:*",
+    "@shamu/adapters-base": "workspace:*"
+  }
+}

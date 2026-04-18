@@ -71,6 +71,22 @@
         "@shamu/shared": "workspace:*",
       },
     },
+    "packages/core/composition": {
+      "name": "@shamu/core-composition",
+      "version": "0.0.0",
+      "dependencies": {
+        "@shamu/core-supervisor": "workspace:*",
+        "@shamu/mailbox": "workspace:*",
+        "@shamu/persistence": "workspace:*",
+        "@shamu/shared": "workspace:*",
+        "@shamu/watchdog": "workspace:*",
+        "@shamu/worktree": "workspace:*",
+      },
+      "devDependencies": {
+        "@shamu/adapter-echo": "workspace:*",
+        "@shamu/adapters-base": "workspace:*",
+      },
+    },
     "packages/core/flow": {
       "name": "@shamu/core-flow",
       "version": "0.0.0",
@@ -302,6 +318,8 @@
     "@shamu/adapters-base": ["@shamu/adapters-base@workspace:packages/adapters/base"],
 
     "@shamu/cli": ["@shamu/cli@workspace:apps/cli"],
+
+    "@shamu/core-composition": ["@shamu/core-composition@workspace:packages/core/composition"],
 
     "@shamu/core-flow": ["@shamu/core-flow@workspace:packages/core/flow"],
 
