@@ -1,0 +1,18 @@
+{
+  "runtime": "bun",
+  "bunVersion": "1.3.11",
+  "expected": 1000,
+  "received": 1000,
+  "gaps": 0,
+  "wallMs": 15.5,
+  "p50Us": -83,
+  "p95Us": 47,
+  "p99Us": 61,
+  "maxUs": 74,
+  "throughputPerSec": 64361,
+  "rssMb": 30.8,
+  "maxRssMb": 0,
+  "jitterMs": 0,
+  "slowConsumerMs": 0,
+  "exitCode": 0
+}

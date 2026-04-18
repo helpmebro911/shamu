@@ -1,0 +1,7 @@
+# The testrepo/ is its own throwaway git repo — keep its contents out of the
+# outer shamu repo. Fixtures, parser source, and the writeup are committed
+# normally.
+testrepo/
+parser/node_modules/
+parser/dist/
+parser/coverage/

@@ -1,0 +1,18 @@
+{
+  "runtime": "node",
+  "nodeVersion": "v25.9.0",
+  "expected": 10000,
+  "received": 10000,
+  "gaps": 0,
+  "wallMs": 98.1,
+  "p50Us": 566,
+  "p95Us": 628,
+  "p99Us": 772,
+  "maxUs": 1269,
+  "throughputPerSec": 101915,
+  "rssMb": 77.7,
+  "maxRssMb": 70.3,
+  "jitterMs": 0,
+  "slowConsumerMs": 0,
+  "exitCode": 0
+}

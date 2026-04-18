@@ -1,0 +1,7 @@
+# Ignore all generated artifacts from the spike — scratch repos, logs, worktrees.
+# Everything in logs/ is script output; the tracked deliverable at
+# docs/phase-0/worktree-merge.md embeds the evidence verbatim.
+testrepo/
+worktrees/
+logs/
+*.tmp

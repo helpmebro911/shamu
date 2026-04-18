@@ -1,0 +1,2 @@
+  ✗ Lint
+npx @redwoodjs/agent-ci run --quiet --all  0.70s user 0.29s system 18% cpu 5.281 total

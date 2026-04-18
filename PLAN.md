@@ -109,20 +109,19 @@ Full-screen terminal dashboard built on **Ink** (React-for-terminals, Bun-compat
 
 ### Surface 3 — Web dashboard (lands Phase 7)
 
-For remote monitoring, sharing a run view in a PR, viewing from a phone, and team/multi-user mode. **Local-first, cloud-optional.**
+Richer local view — graphical DAGs, diff viewer, charts — running alongside the CLI/TUI. **Single-user, on-device, no auth, no team mode.**
 
 - **Stack:** Hono (Bun-native HTTP) + **SolidJS** frontend. Fine-grained reactivity is a clean fit for a constantly-updating event stream; bundle is small; no virtual-DOM tax.
 - **Transport:** Server-Sent Events from the Bun server, reusing the exact `AgentEvent` schema. One-way push — simpler than WebSockets and fits the read-model pattern.
-- **Auth:** binds to `127.0.0.1` by default, no auth. For team mode: OIDC (GitHub/Google/Okta) + signed session cookies. No bespoke auth.
+- **Binding:** `127.0.0.1` only. No OIDC, no session cookies, no team mode. `--unsafe-bind` exists as an explicit escape hatch for LAN-accessible setups and prints a banner; even then, authentication is out of scope for v1.
 - **Storage:** read-only over the same SQLite database the CLI/TUI use — no separate store.
 - **Layout:** mirrors the TUI screens but with richer affordances —
   - Flow DAG rendered as a proper graph (not ASCII), zoomable.
   - Diff viewer for patches produced by the executor (before/after, hunks highlighted).
-  - CI output inline with collapsible failure groups.
+  - CI output inline with collapsible failure groups (using the fixtures+parser shape from Phase 0.D).
   - Linear issue embed in a side-drawer (via Linear's issue-preview OEmbed).
   - Cost/usage charts (per-run, per-role, per-vendor, last 7/30 days).
-- **Shareable URLs:** every run has a stable URL (`/run/<id>`); team mode puts ACL on that URL.
-- **Mobile:** layouts responsive; read-only on phones (no interrupt/kill controls — too easy to fat-finger).
+- **Stable URLs:** every run has a stable URL (`/run/<id>`) for bookmarking — no ACLs because there's one user.
 
 ### Shared design elements (across TUI + web)
 
@@ -151,16 +150,15 @@ For remote monitoring, sharing a run view in a PR, viewing from a phone, and tea
 - [ ] Accessibility: screen-reader-friendly fallback mode (`--simple`)
 
 **Phase 7 — Web dashboard (Track 7.H — Parallel with adapter fan-out)**
-- [ ] Hono server in `apps/web` with SSE endpoint over `AgentEvent`
+- [ ] Hono server in `apps/web` with SSE endpoint over `AgentEvent`; binds to `127.0.0.1` only
+- [ ] SSE `Origin` allow-list (default `http://127.0.0.1:*`; `--unsafe-bind` requires explicit addition)
 - [ ] SolidJS frontend scaffold + router + design tokens
 - [ ] Swarm overview page
 - [ ] Run detail page with DAG visualization (D3 or Cytoscape)
 - [ ] Diff viewer for executor patches
-- [ ] CI output viewer with collapsible groups
+- [ ] CI output viewer with collapsible groups (reuses Phase 0.D parser)
 - [ ] Cost/usage charts (last 7/30/90 days)
-- [ ] Local-only auth skip + optional OIDC team mode
-- [ ] Mobile responsive pass; read-only controls on narrow viewports
-- [ ] Shareable run URL with ACL (team mode)
+- [ ] Stable run URLs (`/run/<id>`) for bookmarking
 
 **Phase 8 — UI ops polish (folds into Track 8.C in the Phased delivery section below)**
 - [ ] `bun build --compile` packages CLI + TUI + web into a single binary
@@ -235,7 +233,7 @@ export type AgentEvent = EventEnvelope & (
 );
 ```
 
-**Capabilities are declared, not inferred.** Core asks, never guesses:
+**Capabilities are declared, not inferred.** Core asks, never guesses. Capability declarations are **immutable** — read from a manifest file packaged with the adapter; the adapter process cannot upgrade/downgrade capabilities at event-emit time (G8 from threat model).
 
 ```ts
 interface Capabilities {
@@ -247,20 +245,28 @@ interface Capabilities {
   customTools: boolean;
   patchVisibility: "events" | "filesystem-only";
   usageReporting: "per-turn" | "per-call" | "none";
-  costReporting: "native" | "computed" | "unknown";
+  costReporting: "native" | "computed" | "subscription" | "unknown";
   sandboxing: "process" | "container" | "remote" | "none";
   streaming: "events" | "final-only";
 }
 ```
 
+**Path-scope is enforced at tool-dispatch time, not just pre-commit (G4).** The adapter's permission handler validates every filesystem tool-call path against the current worktree root before the tool runs: reject absolute paths outside the worktree, `..` escapes, and symlinks that resolve outside. The pre-commit guard is defense in depth, not the primary control.
+
+**Shell-gate patterns match against a parsed AST, not raw command strings (G5).** Shamu's shared `PermissionMode` implementation parses with `shell-quote` (or equivalent) and rejects `$()`, backticks, `eval`, pipes-to-shell, and process substitution unless explicitly allow-listed. Adapters that route writes through structured tool APIs (`Edit`, `Write`) instead of `Bash` get this for free.
+
+**Subprocess backpressure must be Node-compatible.** Phase 0.A found that every vendor CLI is a Node process, so the subprocess helper in `packages/adapters/base` must implement Node-style `drain` handling when writing to vendor stdin. Bun-style fire-and-forget writes break Claude/Codex binaries under load.
+
 ### 2. Event log (`packages/persistence/event-log`)
 
 Two tables, one append-only, one projection.
 
-- `raw_events(event_id, run_id, vendor, ts, payload_json)` — vendor output captured verbatim. Never migrated, never edited. Retention is configurable (default 14 days; archive to cold storage before prune).
-- `events(event_id, run_id, session_id, turn_id, parent_event_id, seq, ts_monotonic, ts_wall, vendor, kind, payload_json)` — normalized projection. Schema migratable.
+- `raw_events(event_id, run_id, vendor, ts, payload_json)` — vendor output captured after **central secret redaction** on first write (G1 from threat model). Never schema-migrated, never edited after write. Retention is configurable (default 14 days; archive to cold storage before prune).
+- `events(event_id, run_id, session_id, turn_id, parent_event_id, seq, ts_monotonic, ts_wall, vendor, kind, payload_json)` — normalized projection. Schema migratable. Redaction runs here too (same redactor, belt-and-braces).
 
 Writes to `events` are idempotent on `event_id`; replays of `raw_events` regenerate `events` exactly. Projection migrations run by replaying the raw log against the new projector — no destructive schema-upgrade scripts. This also means vendor SDKs can drift and we can re-derive a correct `events` table without rerunning agents.
+
+**A separate audit table, `audit_events`, is HMAC-chained (G7).** Every control-plane action (actor, reason, affected entity, timestamp) is appended; each row includes `prev_hmac = HMAC(audit_secret, row_{n-1})`. The chain is verified on boot and on `shamu doctor`. A `BEFORE UPDATE OR DELETE` trigger raises so tampering via the DB is caught even before chain verification. `audit_secret` lives in the OS keychain.
 
 ### 3. SQLite operational rules (`packages/persistence`)
 
@@ -285,7 +291,9 @@ OTP-shaped tree. A `Swarm` supervises `Role` supervisors (`planner`, `executor`,
 **SQLite is the canonical store.** Tables:
 
 - `mailbox(msg_id, swarm_id, from_agent, to_agent, body, delivered_at, read_at)`
-- `leases(lease_id, swarm_id, agent, glob, acquired_at, expires_at)`
+- `leases(lease_id, swarm_id, agent, holder_run_id, holder_worktree_path, glob, acquired_at, expires_at)`
+
+`from_agent` is **assigned by the orchestrator from the authenticated run context, never accepted from the writer** (G6 from threat model). The mailbox API signature takes no `from` parameter; writes from a caller that doesn't own an active run are rejected server-side. `holder_worktree_path` is captured at lease-acquire time so the stale-lease last-touch check (see Patch lifecycle §1) can run `git status --porcelain` in the holder's worktree — the correct worktree.
 
 Files on disk (`.shamu/mailbox/<agent>.jsonl`) are a **transactional materialized export** for human inspection and for agents whose SDKs can't speak SQLite — updated after each DB write inside the same transaction, reconciled on boot. No dual-write: the DB is authoritative; files are regenerated from it if divergence is detected.
 
@@ -304,13 +312,14 @@ Alerts require **two observations at confidence ≥ medium** to agree. Single-si
 
 ### 7. Cost accounting (`packages/persistence/cost`)
 
-Cost is **nullable with confidence metadata** because vendor billing models don't agree:
+Cost is **nullable with confidence metadata** because vendor billing models don't agree. The `source` and `confidence` labels are set by the **core** from the adapter's declared `costReporting` capability — never from runtime adapter output. A compromised adapter cannot mis-tag its own cost to evade budgets (T17 from threat model).
 
-- Anthropic and Codex report exact per-turn cost → `cost.usd` set, `confidence="exact"`, `source="vendor"`.
-- Subscription-backed agents (Cursor, ChatGPT-OAuth Codex, Amp) report usage but cost is "covered by subscription" → `cost.usd=null`, `confidence="unknown"`, `source="subscription"`.
-- Local-model and cache-heavy runs → `cost.usd` computed from `tokens × price_table`, `confidence="estimate"`, `source="computed"`.
+- `costReporting: "native"` (Anthropic, Codex) → `cost.usd` set from vendor response, `confidence="exact"`, `source="vendor"`.
+- `costReporting: "subscription"` (Cursor, ChatGPT-OAuth Codex, Amp) → `cost.usd=null`, `confidence="unknown"`, `source="subscription"`.
+- `costReporting: "computed"` (local models, cache-heavy runs) → `cost.usd` computed by core from `tokens × price_table`, `confidence="estimate"`, `source="computed"`.
+- `costReporting: "unknown"` → `cost.usd=null`, `confidence="unknown"`, `source="unknown"`.
 
-Rollups surface the confidence per aggregate (`"$4.32 exact + $1.10 estimated + 2 subscription runs"`). Budgets and rate limits read from exact+estimated only; subscription runs are tracked for auditability but never block.
+Rollups surface confidence per aggregate (`"$4.32 exact + $1.10 estimated + 2 subscription runs"`). Budgets and rate limits read from exact+estimated only; subscription runs are tracked for auditability but never block.
 
 ### 8. Workflow engine (`packages/core/flow`)
 
@@ -330,7 +339,16 @@ Domain events (`EscalationRaised`, `RunStarted`, `RunCompleted`, `CIRed`, `Patch
 
 ### 10. Quality gate (`packages/ci`)
 
-`packages/ci/gate.ts` wraps `agent-ci` (spawn, parse JUnit/JSON, surface failures as events on the run). No swarm patch is marked "ready" without a green run.
+`packages/ci/gate.ts` spawns `@redwoodjs/agent-ci`, parses its structured output (per Phase 0.D: a `run-state.json` file plus per-step logs under `<workDir>/runs/<runId>/`), and projects failures to `CIRed` / successes to `PatchReady` domain events. No swarm patch is marked "ready" without a green run.
+
+**Gate invariants (from 0.D):**
+
+- `GITHUB_REPO=<owner>/<repo>` is set by the wrapper from the worktree's `origin` remote before spawn — not a user responsibility. Without it, agent-ci crashes at boot.
+- Run status is derived from workflow + job statuses, **not** from the top-level `run-state.status` field (agent-ci writes that async fire-and-forget and the process exits before the final flush).
+- On interrupt or supervisor shutdown, the wrapper calls agent-ci's own abort command, then reaps any orphaned `agent-ci-<n>` Docker containers as a safety net.
+- ANSI SGR codes in step logs are stripped by a conservative regex before passing to the reviewer excerpt.
+
+**Reviewer excerpt is a committed contract, not a handwave.** Deterministic, greedy-then-shrink, token-bounded (default 2000 tokens), TAP-13 and ESLint-aware with a tail-of-log fallback. The reviewer agent's prompt shape depends on it; it lives in `packages/ci` and is covered by fixture tests lifted from the Phase 0.D spike. Vitest/Mocha/Jest native reporters are follow-up extractors added as adapters need them.
 
 Three enforcement layers:
 
@@ -344,38 +362,54 @@ Reviewer agents receive CI summaries + failure excerpts (not raw logs — token-
 
 ## Security & threat model
 
-The harness runs semi-trusted agent behavior with shell/file/network access, stores OAuth and API credentials, injects MCP tools, may open webhook receivers, and exposes a local dashboard. A threat model lands in Phase 0 and is enforced by the patterns below.
+The harness runs semi-trusted agent behavior with shell/file/network access, stores API credentials, injects MCP tools, may open webhook receivers, and exposes a local dashboard. Deploy model: **single user, on-device, macOS + Linux first-class, no auth, no CI runtime**. Full threat model in `docs/phase-0/threat-model.md`; this section enumerates the mitigation contracts.
 
 **Credential handling**
 
-- All API keys live in the OS keychain (`security` on macOS, `libsecret` on Linux, DPAPI on Windows) — never in `.env` committed to the repo, never in the SQLite DB.
+- All API keys live in the OS keychain — `security` on macOS, `libsecret`/`Secret Service` on Linux. Never in `.env` committed to the repo, never in the SQLite DB.
+- Credential backend abstraction (`packages/shared/credentials`) exposes `get(service, account)` / `set` / `delete`; platform detection in the implementation.
+- **Accepted tradeoff:** keychain items are marked "always allow for this app" so autonomous runs aren't prompt-stormed. If shamu itself is compromised, credentials are readable. This is explicit, documented in the onboarding flow, and the right call for a dev-laptop tool.
 - Environment variables passed to agent subprocesses are **allowlisted** per adapter config. Default allowlist is `PATH`, `HOME`, `LANG`, `USER`, plus the single vendor-specific key the adapter needs.
-- Secrets are redacted from every log sink via a central redactor (regex + exact-value hash list) applied by the event-log projector before `events` is written. Planted-secret tests are a contract-suite requirement.
+- Secrets are redacted from every log sink via a central redactor (regex + exact-value hash list) applied **on first write** to both `raw_events` and `events`. Planted-secret tests are a contract-suite requirement.
+- No GitHub-Actions-runtime credential path (env-var fallback): shamu is a dev-laptop tool, not a CI product.
 
 **Per-agent sandbox**
 
-- Filesystem: each worker runs in its own git worktree under `.shamu/worktrees/<run-id>/`. Writes outside the worktree fail at the pre-commit guard and are logged as policy violations.
-- Network: egress allow-list per run (`allowed_hosts: [...]`). Violations are surfaced as events; enforcement requires containerization and ships in Phase 8.
-- Command execution: shell tool calls are gated through `PermissionMode` in Phase 2; the permission handler consults a per-role allow/deny list of command patterns.
-- Process: Bun subprocesses inherit the allowlisted env only; CWD is pinned to the worktree; signals are brokered through the adapter handle (no rogue kills).
+- **Filesystem:** each worker runs in its own git worktree under `.shamu/worktrees/<run-id>/`. The adapter's permission handler rejects absolute paths outside the worktree, `..` escapes, and symlinks that resolve outside, **before the tool call executes** (G4). Pre-commit guard is defense in depth.
+- **Network egress broker:** even without containerization, Phases 2–7 enforce an egress allow-list via a local HTTP(S) proxy (mitmproxy-style) that shamu spawns per run and points agent subprocesses at via `HTTPS_PROXY`. The broker consults the run's `allowed_hosts` and surfaces denied destinations as `policy.egress_denied` events (G2). Containerized enforcement in Phase 8 replaces the broker; policy file format is shared.
+- **Command execution:** shell tool calls are gated through `PermissionMode` (Phase 2). Patterns are matched against a parsed shell AST (via `shell-quote`), not raw command strings. `$()`, backticks, `eval`, pipes-to-shell, and process substitution are rejected unless explicitly allow-listed (G5). Prefer structured tool APIs over `Bash` for routine operations.
+- **Process:** subprocesses inherit the allowlisted env only; CWD is pinned to the worktree; every spawn uses `detached: true` + own process group so `process.kill(-pgid)` reaps stray grandchildren; signals are brokered through the adapter handle.
+
+**MCP trust (G3)**
+
+- In-process MCP tools are trusted (shamu wrote them).
+- stdio MCP servers are pinned by package name + integrity hash in the config.
+- http MCP servers are pinned by origin + TLS pin in the config.
+- A config change introducing a new MCP source requires explicit `shamu mcp trust <fingerprint>` approval; writes an audit event. Webhook or CLI-delivered config cannot silently introduce new MCP sources.
 
 **Webhook hardening**
 
 - HMAC-SHA256 signature verification, constant-time compare.
-- Timestamp window (default 5 min) + SQLite-backed nonce cache rejects replays.
+- Timestamp window (default 5 min) + SQLite-backed nonce cache rejects replays. `shamu doctor` checks clock skew vs NTP.
 - Per-source-IP rate limit; log-and-drop above threshold.
-- `shamu linear tunnel` prints a warning banner that the tunnel is publicly reachable and rotates the subdomain per invocation.
+- `shamu linear tunnel` provisions a cloudflared route restricted to `/webhooks/linear` **only** (G10). The dashboard port is never exposed through `linear tunnel`. `shamu doctor` warns if any local port other than the webhook port is reachable through an active tunnel.
 
 **Dashboard**
 
-- Binds to `127.0.0.1` by default. `0.0.0.0` requires `--unsafe-bind` and prints a banner.
-- Team mode: OIDC + signed session cookies. CSRF tokens on state-changing endpoints (few: `interrupt`, `kill`, `setModel`, `setPermissionMode`, `approve`, `deny`).
-- SSE endpoint rejects `Origin` headers outside the configured allow-list.
-- No run secrets in query strings or path segments — everything behind auth.
+- Binds to `127.0.0.1` by default. `--unsafe-bind` exists as an explicit escape hatch for LAN-accessible setups and prints a banner; even then, **auth is out of scope for v1** (single-user, dev-laptop deploy).
+- SSE endpoint rejects `Origin` headers outside the configured allow-list. Default allow-list is `http://127.0.0.1:*`; `--unsafe-bind` requires explicit origin additions, no wildcards.
+- No run secrets in query strings or path segments.
 
 **Audit log**
 
-- Every control-plane action is persisted as a typed audit event — actor, reason, timestamp, affected entity — into a separate append-only `audit_events` table. Immutable; not co-mingled with `raw_events` or `events`.
+- Every control-plane action is persisted as an `audit_events` row. HMAC-chained (see §2 Event log) — tamper-evident, not merely append-only-by-convention (G7).
+
+**Supply chain (G9)**
+
+- Direct dependencies pinned to exact versions (no `^` or `~` in `package.json`).
+- `bun install --frozen-lockfile --ignore-scripts` for production installs; CI runs `bun audit` (or equivalent).
+- Vendor SDKs installed behind a per-package allow-list: new transitive dependencies with postinstall scripts fail CI.
+- Where available, `provenance` required on direct deps.
 
 ---
 
@@ -383,15 +417,21 @@ The harness runs semi-trusted agent behavior with shell/file/network access, sto
 
 The unit of work an executor produces. Sits between the mailbox/lease layer and the CI gate.
 
-1. **Claim.** Executor acquires a lease over a glob before reading/writing. Stale leases (expired) can be reclaimed only after a "last touch" check against the git index — if the holding worker has uncommitted changes under the glob, the stale lease is promoted to a **conflict artifact** and an `EscalationRaised` event fires.
-2. **Edit.** Worker edits within its worktree. Only paths under live leases held by this worker are allowed; pre-commit guard enforces.
+1. **Claim.** Executor acquires a lease over a glob before reading/writing. Stale leases (expired) can be reclaimed only after a **last-touch check**: `git status --porcelain --untracked-files=all --ignored=no` scoped to the lease globs, run **in the holder's worktree** (`holder_worktree_path` from the lease row). Any non-empty output refuses reclaim and raises `EscalationRaised`. If the holder's worktree is missing entirely, also refuse — treat as `holder_worktree_missing` and escalate. Never silently grant.
+2. **Edit.** Worker edits within its worktree. Only paths under live leases held by this worker are allowed; the adapter permission handler enforces path-scope at dispatch time; pre-commit guard is backup.
 3. **Commit.** Signed commit on `shamu/<run-id>`. Message includes `run_id`, `flow_run_id`, `flow_node_id`, `lease_ids`.
-4. **CI.** Gate fires `agent-ci`; result attaches to the run (events + artifact rows).
+4. **CI.** Gate fires `agent-ci`; result attaches to the run (events + artifact rows) via the `packages/ci` parser.
 5. **Review.** Reviewer agent receives diff + CI summary + lease metadata. Verdict is `approve` / `revise` / `block`.
-6. **Integrate.** On approve + green CI, patch merges into the swarm's integration branch (`shamu/integration/<swarm-id>`). Integration branch reruns `agent-ci` after each merge; red → **automatic revert + `CIRed` event + reviewer re-engagement**. A post-merge **diff-overlap check** flags two approved patches that touched shared files or test/config; overlaps fan back to a reconcile node in the flow rather than silently winning last-writer-wins.
-7. **Human handoff.** Integration branch → human PR against the target branch. Human merges (or closes); Linear attachment updates.
+6. **Integrate.** On approve + green CI, patch merges into `shamu/integration/<swarm-id>` (non-ff merge for ancestry). **Three complementary checks must all pass**, per Phase 0.C findings:
+   - `git merge --no-commit` exit code — catches textual line conflicts.
+   - **Diff-overlap check** (`diffOverlapCheck(repo, integrationBranch, windowStart, mergedRuns, policy)`) — catches shared-file risk git itself merged cleanly. Uses `git diff --name-only -M` against each run's merge-base; `alwaysFlagGlobs` default `**/*.test.*`, `**/tsconfig*.json`, `package.json`, `**/schema.sql`, `agent-ci.yml`, `.github/workflows/*.yml`; `ignoredGlobs` default `**/*.md`, `node_modules/**`, `vendor/**`, `.shamu/**`; non-empty flagged set fans back to a reconcile node.
+   - **Rerun `agent-ci`** on the integration branch after the merge — catches cross-file semantic breaks (e.g., rename in one patch, caller in another).
+7. **Auto-revert is bisect-aware, not blind.** If integration CI turns red after a merge, revert the last merge (`git revert -m 1 <merge-sha>`), rerun CI. If still red, the break was latent; bisect backwards up to N attempts before quarantining the whole window. A blind single-revert that assumes the last merge caused the break would hide pre-existing failures.
+8. **Human handoff.** Integration branch → human PR against the target branch. Human merges (or closes); Linear attachment updates.
 
 Failure paths: a patch that fails CI after N retries is marked `quarantined`, its branch is preserved, and the flow node fails over to `HumanGate`. Quarantined patches accumulate in a `shamu:quarantine` view and don't block other lanes.
+
+**Implementation note:** the `packages/worktree` implementation must not pass `-q` to `git revert` or `git worktree prune` (rejected by git 2.50+). Redirect stdout/stderr instead.
 
 ---
 
@@ -464,6 +504,8 @@ Time-boxed validation of the assumptions that cost the most if they're wrong. Ev
 
 **Exit:** five writeups under `docs/phase-0/`; adapter contract, event schema, patch lifecycle, CI integration, and threat model edits merged into `PLAN.md` based on findings.
 
+**Status (2026-04-17):** 0.A, 0.C, 0.D, 0.E complete. 0.B blocked on live API keys. Findings folded into PLAN.md: adapter contract (path-scope, Node backpressure), capability immutability, audit-log HMAC chain, mailbox `from_agent` authentication, `holder_worktree_path` lease column, diff-overlap + bisect-aware revert specs, agent-ci parse shape (`run-state.json` + step logs), `GITHUB_REPO` invariant, Docker container reaping, egress broker promoted to Phase 7, single-user no-auth scope confirmed, MCP trust prompt, supply-chain discipline, keychain "always allow this app" tradeoff documented.
+
 ---
 
 ### Phase 1 — Foundations
@@ -475,14 +517,21 @@ Time-boxed validation of the assumptions that cost the most if they're wrong. Ev
 
 **Track 1.B — Shared foundations (Parallel, start after 1.A)**
 - [ ] `packages/shared`: `Logger`, `Result<T,E>` helpers, error taxonomy, branded IDs
-- [ ] `packages/shared`: Zod schemas for `AgentEvent`, `SpawnOpts`, `Capabilities`
-- [ ] `packages/persistence`: SQLite schema + migration runner
-- [ ] `packages/persistence`: tables for `runs`, `sessions`, `events`, `checkpoints`, `mailbox`, `leases`, `linear_issues`, `ci_runs`
-- [ ] `packages/persistence`: typed query helpers (no ORM — prepared statements)
+- [ ] `packages/shared`: Zod schemas for `AgentEvent`, `SpawnOpts`, `Capabilities`, audit events
+- [ ] `packages/shared/credentials`: cross-platform keychain abstraction (macOS `security`, Linux `libsecret`/`Secret Service`); "always allow this app" flag documented
+- [ ] `packages/shared/redactor`: central secret redactor (regex + value-hash list); planted-secret test suite
+- [ ] `packages/persistence`: SQLite schema + migration runner with advisory-lock protection
+- [ ] `packages/persistence`: tables for `runs`, `sessions`, `events`, `raw_events`, `checkpoints`, `mailbox`, `leases` (incl. `holder_run_id`, `holder_worktree_path`), `linear_issues`, `ci_runs`, `audit_events` (HMAC-chained)
+- [ ] `packages/persistence`: `BEFORE UPDATE OR DELETE` trigger on `audit_events` raising
+- [ ] `packages/persistence`: typed query helpers (no ORM — prepared statements only)
+- [ ] ESLint/Biome rule in `packages/persistence`: no dynamic SQL string building (reject `\`SELECT … ${…}\`` patterns)
 
 **Track 1.C — Adapter contract (Serial after 1.B shared types)**
-- [ ] `packages/adapters/base`: `AgentAdapter`, `AgentHandle`, `AgentEvent` interfaces
-- [ ] `packages/adapters/base`: subprocess-with-JSONL helper (Bun.spawn + line splitter + backpressure)
+- [ ] `packages/adapters/base`: `AgentAdapter`, `AgentHandle`, `AgentEvent`, `Capabilities` interfaces + immutable manifest loader
+- [ ] `packages/adapters/base`: subprocess-with-JSONL helper (`Bun.spawn` + line splitter + **Node-style `drain` backpressure** for writes to vendor stdin; all vendor CLIs are Node-based)
+- [ ] `packages/adapters/base`: `detached: true` / process-group spawn pattern; `process.kill(-pgid)` reap helpers
+- [ ] `packages/adapters/base`: path-scope validator (reject absolute paths outside worktree, `..`, resolved-symlink escapes) used by every adapter's permission handler
+- [ ] `packages/adapters/base`: shell AST gate (`shell-quote`) with reject-list for `$()`, backticks, `eval`, pipes-to-shell, process substitution
 - [ ] `packages/adapters/base`: normalized event replayer (record/replay for tests)
 - [ ] `packages/adapters/base`: shared contract test suite (will be run by every adapter)
 
@@ -502,10 +551,10 @@ Time-boxed validation of the assumptions that cost the most if they're wrong. Ev
 ### Phase 2 — Claude + Codex adapters
 
 **Track 2.A — Claude adapter (Parallel)**
-- [ ] `packages/adapters/claude`: wrap `query()` and `ClaudeSDKClient` behind `AgentAdapter`
+- [ ] `packages/adapters/claude`: wrap `query()` (returns async-iterable `Query` with `interrupt`/`setModel`/`setPermissionMode`/`rewindFiles`) behind `AgentAdapter`. Phase 0.A verified `ClaudeSDKClient` does **not** exist in `@anthropic-ai/claude-agent-sdk@0.2.113`; use `query()` for one-shot and `unstable_v2_createSession`/`unstable_v2_prompt` for warm-resume.
 - [ ] Hook bridge: `PreToolUse`/`PostToolUse`/`Stop`/`SessionStart` → normalized events
-- [ ] `setModel`, `setPermissionMode`, `interrupt`, `rewindFiles` passthroughs
 - [ ] In-process MCP server injection for orchestrator-provided tools
+- [ ] Cache-key composition contract: include `runId` (or per-session salt) in the cache prefix; flush caches when MCP tools or system prompt change; contract test asserts two runs with different system prompts don't share a cache hit (T9 from threat model)
 - [ ] Claude-specific contract test suite run
 
 **Track 2.B — Codex adapter (Parallel with 2.A)**
@@ -540,13 +589,15 @@ Three tracks fully parallel — none depends on the others' internals, only on P
 - [ ] Per-run branch naming convention; detach on cleanup
 - [ ] GC: prune worktrees whose run row is `completed`/`failed` and older than N hours
 - [ ] Lease-aware pre-commit hook installer (placeholder until 3.C lands)
+- [ ] **git 2.50 gotcha:** never pass `-q` to `git revert` or `git worktree prune` (unknown-switch error); redirect stdout/stderr instead. Applies to any git subcommand invoked from this package — enforce via code review checklist.
 
 **Track 3.C — Mailbox & leases (Parallel)**
-- [ ] `packages/mailbox`: SQLite tables `mailbox` + `leases` as canonical store; `.shamu/mailbox/<agent>.jsonl` files as transactional materialized export (reconciled on boot)
-- [ ] `broadcast`, `whisper`, `read`, `mark_read` primitives (DB-backed, file-exported)
-- [ ] TTL'd advisory leases keyed on glob; stale-lease reclaim requires git-index "last touch" check
-- [ ] Pre-commit guard: reject commit if author doesn't hold a live lease on any staged path
-- [ ] Contract test: two workers racing on the same glob; one is rejected cleanly
+- [ ] `packages/mailbox`: SQLite tables `mailbox` + `leases` (with `holder_run_id`, `holder_worktree_path`) as canonical store; `.shamu/mailbox/<agent>.jsonl` files as transactional materialized export (reconciled on boot)
+- [ ] `broadcast`, `whisper`, `read`, `mark_read` primitives — **`from_agent` assigned by the orchestrator from authenticated run context**, never from the writer's payload (G6)
+- [ ] Writes from a caller that doesn't own an active run are rejected server-side
+- [ ] TTL'd advisory leases keyed on glob; stale-lease reclaim runs `git status --porcelain --untracked-files=all --ignored=no` in the holder's worktree; non-empty output refuses reclaim + escalates; holder-worktree-missing also refuses + escalates
+- [ ] Pre-commit guard: reject commit if author doesn't hold a live lease covering every staged path
+- [ ] Contract tests: `from_agent` forgery rejected; two workers racing on same glob — one rejected; stale-lease reclaim with dirty holder refuses cleanly
 
 **Track 3.D — Watchdog (Serial after 3.A supervisor + any adapter emitting `checkpoint` events)**
 - [ ] `packages/watchdog`: out-of-process Bun subprocess, shares SQLite read-only
@@ -556,7 +607,7 @@ Three tracks fully parallel — none depends on the others' internals, only on P
 - [ ] Argument canonicalization + secret redaction before hashing for `tool_loop`
 - [ ] Integration test: manufactured stall trips watchdog within expected window; manufactured cold-start shows `confidence=unknown` and no false escalation
 
-**Exit:** two Claude workers in parallel worktrees coordinate via mailbox; supervisor restarts a killed worker under policy; watchdog fires on a manufactured stall.
+**Exit:** two Claude workers in parallel worktrees coordinate via mailbox; supervisor restarts a killed worker under policy; watchdog fires on a manufactured stall; **all six Phase 0.C manufactured scenarios reproduced as contract tests** (clean concurrent, overlapping lines, non-overlapping same-file, cross-file semantic, stale-lease reclaim, 10-worktree cleanup cost); diff-overlap check + stale-lease last-touch check both implemented and green.
 
 ---
 
@@ -585,15 +636,23 @@ Mostly serial — the flow engine composes earlier primitives.
 
 ### Phase 5 — agent-ci gate
 
-**Track 5.A — CI wrapper (Parallel)**
-- [ ] `packages/ci/gate`: spawn `agent-ci`, parse JUnit/JSON output
-- [ ] Map failures into `AgentEvent` stream as blocking events
+**Track 5.A — CI wrapper (Parallel). Lifts the Phase 0.D spike parser from `docs/phase-0/agent-ci-spike/parser/` into `packages/ci/`; only the subprocess driver reshapes from Node `child_process.spawn` to `Bun.spawn`.**
+- [ ] `packages/ci/gate`: spawn `@redwoodjs/agent-ci`; set `GITHUB_REPO` from the worktree's `origin` remote before spawn (boot invariant)
+- [ ] Run-dir discovery via pre/post diff of `<workDir>/runs/` (agent-ci has no stdout pointer to the run dir)
+- [ ] Parse `run-state.json` + per-step logs; **derive run status from workflow + job statuses**, never from top-level `state.status` (fire-and-forget save quirk)
+- [ ] TAP-13 extractor, ESLint-stylish extractor, tail-fallback for unknown formats
+- [ ] ANSI SGR stripping (conservative regex)
+- [ ] `toDomainEvent` projection → `CIRed` / `PatchReady`
+- [ ] Interrupt path: call agent-ci's own abort first, then reap any `agent-ci-<n>` Docker containers as safety net
+- [ ] Replay tests over the three Phase 0.D fixtures (green, red-test, red-lint) — must produce byte-identical summaries
 - [ ] Artifact capture (logs, reports) attached to run row in SQLite
 
 **Track 5.B — Reviewer integration (Parallel with 5.A)**
-- [ ] Reviewer agent input schema includes CI summary + failure excerpts (not raw logs — token-hungry)
+- [ ] Reviewer excerpt is a committed contract in `packages/ci`: deterministic, token-bounded (2000 default), greedy-then-shrink, TAP/ESLint-aware with tail fallback — lifted from 0.D spike
+- [ ] Reviewer agent input schema includes CI summary + excerpt; no raw logs
 - [ ] Reviewer verdict can require "re-run CI after changes" without declaring approval
 - [ ] Flow engine: reviewer approval blocked on red CI
+- [ ] Soft RFC filed upstream for `@redwoodjs/agent-ci --report=json` flag (non-blocking)
 
 **Track 5.C — Quality bars (Serial after 5.A + 5.B)**
 - [ ] Per-role CI-failure counter; watchdog tripwire on three consecutive reds
@@ -648,6 +707,13 @@ Biggest parallel fan of any phase. Six adapter tracks plus one web-dashboard tra
 **Track 7.H — Web dashboard (Parallel with 7.A–7.F; see UI plan task breakdown above)**
 - [ ] All web-dashboard tasks from the UI plan land here
 
+**Track 7.I — Network egress broker (Parallel; must land by end of Phase 7)**
+- [ ] `packages/egress-broker`: local HTTP(S) proxy (mitmproxy-style) spawned per run; agent subprocesses get `HTTPS_PROXY`/`HTTP_PROXY` pointed at it
+- [ ] Per-run `allowed_hosts` policy; denied destinations surface as `policy.egress_denied` events
+- [ ] Default allow-lists shipped per adapter (Anthropic → `api.anthropic.com`; Codex → `api.openai.com`; etc.)
+- [ ] Contract test: prompt injection attempting `curl attacker.com` is blocked and logged
+- [ ] Policy file format shared with Phase 8's containerized enforcement
+
 **Exit:** integration test spawns one of each adapter against the same trivial task; capability matrix published; web dashboard reaches feature parity with the TUI for read-only views.
 
 ---
@@ -670,12 +736,13 @@ Crosses the CLI-process → long-lived-service line. A2A stays optional; autonom
 - [ ] Example: remote Claude agent hosted on another box joins a local swarm
 
 **Track 8.C — Ops polish (Serial after 8.A; subsumes the UI plan's Phase 8 items)**
-- [ ] `shamu doctor`: environment/auth/webhook health check (previously stubbed)
-- [ ] `bun build --compile` single-binary release + GitHub Releases workflow
+- [ ] `shamu doctor`: environment/auth/webhook health check, keychain integrity, clock-skew vs NTP, `audit_events` chain verification, egress-broker reachability, tunnel scope warnings
+- [ ] `bun build --compile` single-binary release on macOS arm64 + Linux x86_64
+- [ ] **Sidecar bootstrap for the Claude 200MB per-platform binary** (Phase 0.A found it can't be `--compile`-bundled): first-run downloads or ships alongside the main binary; version pinned in config
 - [ ] `shamu ui` opens the web dashboard in the default browser
 - [ ] Screenshot CI: every PR gets TUI + web screenshots captured via headless render
 - [ ] README, architecture diagram, contribution guide, threat-model summary
-- [ ] Network egress enforcement via container sandbox (closes the Phase 0 threat-model gap)
+- [ ] Container-based network egress enforcement replaces Phase 7's in-process egress broker (same policy format)
 
 **Exit:** 24-hour autonomous run on staging Linear with watchdog + escalation proven; signed single-binary release shipped.
 
@@ -706,13 +773,23 @@ Phases 0, 3, and 7 are the biggest parallelization wins — up to 5, 3, and 7 co
 - `agent-ci` green on every PR. Enforced by GitHub branch protection + required status check + signed commits. A local `--no-verify` is irrelevant — the required check simply never posts, so the branch rule blocks the merge.
 - Snapshot tests on the normalized event stream so a vendor SDK change can't silently corrupt it.
 
-## Open questions (for the user)
+## Decisions captured from user (2026-04-17)
+
+- **Deploy target:** macOS + Linux, both first-class. Credential backend supports `security` (macOS) and `libsecret` (Linux).
+- **Corporate proxy / `HTTPS_PROXY` chain-through:** deferred; design keeps the door open via the Phase 7 egress broker but no work planned now.
+- **Team mode / OIDC:** **out of scope**. On-device, single-user, no auth. Stripped from UI plan.
+- **GitHub Actions runtime:** never. Always dev-laptop; no env-var credential fallback needed.
+- **raw_events retention:** 14-day default accepted.
+- **Keychain UX:** "always allow this app" is the default — non-annoying for autonomous runs. Tradeoff (keychain readable if shamu itself is compromised) documented.
+- **Autonomy ceiling:** **full autonomy is the design goal**, not an eventual option. Consequences: G2 (egress broker), G3 (MCP trust), G4 (path-scope at dispatch), G6 (mailbox authentication), G7 (audit HMAC chain), and G11 (A2A trust roots — if A2A ships) must all be green before the autonomous daemon goes live. Promoted out of "Phase 8 nice-to-have" into concrete phase blockers.
+
+## Remaining open questions
 
 1. **Licensing.** MIT, Apache-2.0, or AGPL? MIT maximizes adoption; AGPL protects if a vendor productizes it.
-2. **Hosted mode?** The plan is local-first. If you want a cloud deployment path later, Phase 3's SQLite choice is still fine (Litestream to S3), but A2A + remote auth becomes the first thing to harden.
-3. **Autonomy ceiling.** Phase 8 assumes a human signs off on the final PR. Do you want a `fully-autonomous: true` mode that auto-merges on green CI + two agent reviews? (Recommended: no, at least not v1.)
-4. **Naming.** Keep `shamu`? Want me to workshop alternatives? (Killer whales hunt in pods — the metaphor holds.)
+2. **Naming.** Keep `shamu`? Want me to workshop alternatives? (Killer whales hunt in pods — the metaphor holds.)
+3. **A2A in v1?** Autonomous mode is a design goal, but A2A (remote peers over JSON-RPC with Signed Agent Cards) multiplies attack surface. Phase 8 Track 8.B is currently "optional for v1." Confirm whether to treat it as must-ship or defer.
+4. **Phase 0.B.** Needs real API keys to capture event streams from Claude and Codex. How would you like to supply them? (Keychain entry, path to a sourceable file, or direct paste when ready.)
 
-## Immediate next step (if approved)
+## Immediate next step
 
-Run Phase 0 first — the five spikes are cheap, parallelizable, and the whole point is to find the things that will break Phase 1's contracts before we freeze them. Then scaffold Phase 1 (Bun monorepo, SQLite schema with WAL + event log tables, adapter base contract, stub adapter, CLI skeleton, `agent-ci.yml`) in a single commit so the repo has shape.
+Phase 0 is 4/5 complete; 0.B awaits keys. Findings folded into PLAN.md. Ready to start Phase 1 scaffolding (Bun monorepo, SQLite schema with WAL + event log tables + HMAC-chained audit table, cross-platform credential backend, adapter base contract with path-scope/shell-AST/Node-backpressure helpers, stub adapter, CLI skeleton, `agent-ci.yml`) as soon as you approve.

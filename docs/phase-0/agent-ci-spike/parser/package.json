@@ -1,0 +1,17 @@
+{
+  "name": "shamu-agent-ci-parser-spike",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Spike parser for @redwoodjs/agent-ci output — drafts shamu's Phase 5 quality-gate extractor.",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  }
+}

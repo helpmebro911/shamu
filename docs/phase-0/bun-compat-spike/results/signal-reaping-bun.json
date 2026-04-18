@@ -1,0 +1,65 @@
+[
+  {
+    "label": "direct-sleep",
+    "signal": "SIGINT",
+    "exitCode": 130,
+    "reapMs": 0.29,
+    "totalMs": 101.96
+  },
+  {
+    "label": "direct-sleep",
+    "signal": "SIGTERM",
+    "exitCode": 143,
+    "reapMs": 0.24,
+    "totalMs": 101.72
+  },
+  {
+    "label": "direct-sleep",
+    "signal": "SIGKILL",
+    "exitCode": 137,
+    "reapMs": 0.24,
+    "totalMs": 101.61
+  },
+  {
+    "label": "node-with-handler",
+    "signal": "SIGINT",
+    "exitCode": 10,
+    "reapMs": 6.36,
+    "totalMs": 107.82
+  },
+  {
+    "label": "node-with-handler",
+    "signal": "SIGTERM",
+    "exitCode": 11,
+    "reapMs": 6.78,
+    "totalMs": 108.22
+  },
+  {
+    "label": "node-with-handler",
+    "signal": "SIGKILL",
+    "exitCode": 137,
+    "reapMs": 1.15,
+    "totalMs": 102.53
+  },
+  {
+    "label": "bun-with-handler",
+    "signal": "SIGINT",
+    "exitCode": 10,
+    "reapMs": 3.28,
+    "totalMs": 104.68
+  },
+  {
+    "label": "bun-with-handler",
+    "signal": "SIGTERM",
+    "exitCode": 11,
+    "reapMs": 1.12,
+    "totalMs": 102.07
+  },
+  {
+    "label": "bun-with-handler",
+    "signal": "SIGKILL",
+    "exitCode": 137,
+    "reapMs": 0.9,
+    "totalMs": 102.14
+  }
+]

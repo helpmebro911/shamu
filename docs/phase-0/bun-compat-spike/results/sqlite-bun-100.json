@@ -1,0 +1,133 @@
+{
+  "runtime": "bun",
+  "bunVersion": "1.3.11",
+  "writeRate": 100,
+  "durationSec": 60,
+  "readerCount": 10,
+  "writer": {
+    "role": "writer",
+    "targetRate": 100,
+    "actualRate": 100,
+    "writesAttempted": 6000,
+    "errors": 0,
+    "writeMsP50": 0.434,
+    "writeMsP95": 0.665,
+    "writeMsP99": 0.893,
+    "writeMsMax": 5.626
+  },
+  "readers": [
+    {
+      "role": "reader",
+      "reads": 219147,
+      "errors": 0,
+      "maxSeqSeen": 5999,
+      "seqRegressions": 0,
+      "readMsP50": 0.2,
+      "readMsP95": 0.651,
+      "readMsP99": 0.741,
+      "readMsMax": 4.334
+    },
+    {
+      "role": "reader",
+      "reads": 218728,
+      "errors": 0,
+      "maxSeqSeen": 5999,
+      "seqRegressions": 0,
+      "readMsP50": 0.201,
+      "readMsP95": 0.653,
+      "readMsP99": 0.741,
+      "readMsMax": 4.048
+    },
+    {
+      "role": "reader",
+      "reads": 218694,
+      "errors": 0,
+      "maxSeqSeen": 5999,
+      "seqRegressions": 0,
+      "readMsP50": 0.202,
+      "readMsP95": 0.652,
+      "readMsP99": 0.739,
+      "readMsMax": 3.905
+    },
+    {
+      "role": "reader",
+      "reads": 218925,
+      "errors": 0,
+      "maxSeqSeen": 5999,
+      "seqRegressions": 0,
+      "readMsP50": 0.201,
+      "readMsP95": 0.652,
+      "readMsP99": 0.741,
+      "readMsMax": 3.933
+    },
+    {
+      "role": "reader",
+      "reads": 218842,
+      "errors": 0,
+      "maxSeqSeen": 5999,
+      "seqRegressions": 0,
+      "readMsP50": 0.201,
+      "readMsP95": 0.652,
+      "readMsP99": 0.737,
+      "readMsMax": 7.131
+    },
+    {
+      "role": "reader",
+      "reads": 218888,
+      "errors": 0,
+      "maxSeqSeen": 5999,
+      "seqRegressions": 0,
+      "readMsP50": 0.201,
+      "readMsP95": 0.653,
+      "readMsP99": 0.737,
+      "readMsMax": 3.999
+    },
+    {
+      "role": "reader",
+      "reads": 218928,
+      "errors": 0,
+      "maxSeqSeen": 5999,
+      "seqRegressions": 0,
+      "readMsP50": 0.201,
+      "readMsP95": 0.65,
+      "readMsP99": 0.739,
+      "readMsMax": 3.278
+    },
+    {
+      "role": "reader",
+      "reads": 219171,
+      "errors": 0,
+      "maxSeqSeen": 5999,
+      "seqRegressions": 0,
+      "readMsP50": 0.201,
+      "readMsP95": 0.651,
+      "readMsP99": 0.736,
+      "readMsMax": 4.013
+    },
+    {
+      "role": "reader",
+      "reads": 218718,
+      "errors": 0,
+      "maxSeqSeen": 5999,
+      "seqRegressions": 0,
+      "readMsP50": 0.201,
+      "readMsP95": 0.652,
+      "readMsP99": 0.738,
+      "readMsMax": 4.201
+    },
+    {
+      "role": "reader",
+      "reads": 218725,
+      "errors": 0,
+      "maxSeqSeen": 5999,
+      "seqRegressions": 0,
+      "readMsP50": 0.202,
+      "readMsP95": 0.651,
+      "readMsP99": 0.738,
+      "readMsMax": 3.332
+    }
+  ],
+  "finalRowCount": 6000,
+  "finalMaxSeq": 5999,
+  "integrity": "ok"
+}

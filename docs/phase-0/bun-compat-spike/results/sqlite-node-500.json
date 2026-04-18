@@ -1,0 +1,133 @@
+{
+  "runtime": "node",
+  "nodeVersion": "v25.9.0",
+  "writeRate": 500,
+  "durationSec": 60,
+  "readerCount": 10,
+  "writer": {
+    "role": "writer",
+    "targetRate": 500,
+    "actualRate": 500,
+    "writesAttempted": 30000,
+    "errors": 0,
+    "writeMsP50": 0.119,
+    "writeMsP95": 0.221,
+    "writeMsP99": 0.321,
+    "writeMsMax": 4.238
+  },
+  "readers": [
+    {
+      "role": "reader",
+      "reads": 76466,
+      "errors": 0,
+      "maxSeqSeen": 29999,
+      "seqRegressions": 0,
+      "readMsP50": 0.37,
+      "readMsP95": 2.759,
+      "readMsP99": 3.434,
+      "readMsMax": 6.179
+    },
+    {
+      "role": "reader",
+      "reads": 75562,
+      "errors": 0,
+      "maxSeqSeen": 29999,
+      "seqRegressions": 0,
+      "readMsP50": 0.376,
+      "readMsP95": 2.776,
+      "readMsP99": 3.456,
+      "readMsMax": 6.715
+    },
+    {
+      "role": "reader",
+      "reads": 75508,
+      "errors": 0,
+      "maxSeqSeen": 29999,
+      "seqRegressions": 0,
+      "readMsP50": 0.373,
+      "readMsP95": 2.792,
+      "readMsP99": 3.482,
+      "readMsMax": 6.123
+    },
+    {
+      "role": "reader",
+      "reads": 76161,
+      "errors": 0,
+      "maxSeqSeen": 29999,
+      "seqRegressions": 0,
+      "readMsP50": 0.369,
+      "readMsP95": 2.787,
+      "readMsP99": 3.477,
+      "readMsMax": 6.62
+    },
+    {
+      "role": "reader",
+      "reads": 76053,
+      "errors": 0,
+      "maxSeqSeen": 29999,
+      "seqRegressions": 0,
+      "readMsP50": 0.373,
+      "readMsP95": 2.774,
+      "readMsP99": 3.443,
+      "readMsMax": 5.26
+    },
+    {
+      "role": "reader",
+      "reads": 75795,
+      "errors": 0,
+      "maxSeqSeen": 29999,
+      "seqRegressions": 0,
+      "readMsP50": 0.373,
+      "readMsP95": 2.778,
+      "readMsP99": 3.466,
+      "readMsMax": 4.79
+    },
+    {
+      "role": "reader",
+      "reads": 76090,
+      "errors": 0,
+      "maxSeqSeen": 29999,
+      "seqRegressions": 0,
+      "readMsP50": 0.369,
+      "readMsP95": 2.768,
+      "readMsP99": 3.475,
+      "readMsMax": 5.752
+    },
+    {
+      "role": "reader",
+      "reads": 76052,
+      "errors": 0,
+      "maxSeqSeen": 29999,
+      "seqRegressions": 0,
+      "readMsP50": 0.369,
+      "readMsP95": 2.775,
+      "readMsP99": 3.503,
+      "readMsMax": 4.662
+    },
+    {
+      "role": "reader",
+      "reads": 75711,
+      "errors": 0,
+      "maxSeqSeen": 29999,
+      "seqRegressions": 0,
+      "readMsP50": 0.373,
+      "readMsP95": 2.784,
+      "readMsP99": 3.482,
+      "readMsMax": 5.235
+    },
+    {
+      "role": "reader",
+      "reads": 75803,
+      "errors": 0,
+      "maxSeqSeen": 29999,
+      "seqRegressions": 0,
+      "readMsP50": 0.374,
+      "readMsP95": 2.772,
+      "readMsP99": 3.473,
+      "readMsMax": 5.884
+    }
+  ],
+  "finalRowCount": 30000,
+  "finalMaxSeq": 29999,
+  "integrity": "ok"
+}

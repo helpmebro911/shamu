@@ -1,0 +1,52 @@
+{
+  "runtime": "bun",
+  "bunVersion": "1.3.11",
+  "claude": {
+    "importOk": true,
+    "constructOk": false,
+    "methods": [],
+    "moduleKeys": [
+      "AbortError",
+      "DirectConnectError",
+      "DirectConnectTransport",
+      "EXIT_REASONS",
+      "HOOK_EVENTS",
+      "InMemorySessionStore",
+      "SYSTEM_PROMPT_DYNAMIC_BOUNDARY",
+      "createSdkMcpServer",
+      "deleteSession",
+      "forkSession",
+      "getSessionInfo",
+      "getSessionMessages",
+      "getSubagentMessages",
+      "importSessionToStore",
+      "listSessions",
+      "listSubagents",
+      "parseDirectConnectUrl",
+      "query",
+      "renameSession",
+      "startup",
+      "tagSession",
+      "tool",
+      "unstable_v2_createSession",
+      "unstable_v2_prompt",
+      "unstable_v2_resumeSession"
+    ],
+    "hasQuery": true,
+    "hasClient": false
+  },
+  "codex": {
+    "importOk": true,
+    "constructOk": true,
+    "methods": [
+      "startThread",
+      "resumeThread"
+    ],
+    "moduleKeys": [
+      "Codex",
+      "Thread"
+    ],
+    "hasCodexCtor": true,
+    "hasStartThread": true
+  }
+}
