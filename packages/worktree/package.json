@@ -1,0 +1,19 @@
+{
+  "name": "@shamu/worktree",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Per-run git worktree lifecycle for Shamu: create, destroy, GC, and lease-aware pre-commit hook installer.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@shamu/shared": "workspace:*"
+  }
+}

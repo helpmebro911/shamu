@@ -616,12 +616,12 @@ Three tracks fully parallel — none depends on the others' internals, only on P
 - [x] Escalation publishes `EscalationRaised` domain event; in-memory subscriber surfaces to CLI/status. No Linear coupling — that sink lands in Phase 6
 - [x] Unit tests: simulated worker crashes exercising every restart path
 
-**Track 3.B — Worktrees (Parallel)**
-- [ ] `packages/worktree`: create/destroy `.git/worktrees/shamu-<run-id>`
-- [ ] Per-run branch naming convention; detach on cleanup
-- [ ] GC: prune worktrees whose run row is `completed`/`failed` and older than N hours
-- [ ] Lease-aware pre-commit hook installer (placeholder until 3.C lands)
-- [ ] **git 2.50 gotcha:** never pass `-q` to `git revert` or `git worktree prune` (unknown-switch error); redirect stdout/stderr instead. Applies to any git subcommand invoked from this package — enforce via code review checklist.
+**Track 3.B — Worktrees (Parallel)** ✅
+- [x] `packages/worktree`: create/destroy `.shamu/worktrees/<run-id>` (PLAN originally wrote both `.git/worktrees/shamu-<run-id>` and `.shamu/worktrees/<run-id>` interchangeably; locked in the latter per Security & threat model § Filesystem)
+- [x] Per-run branch naming convention (`shamu/<run-id>`); detach on cleanup
+- [x] GC: prune worktrees whose run row is `completed`/`failed` and older than N hours (default 24h); persistence decoupled via injected `persistenceReadRun` callback
+- [x] Lease-aware pre-commit hook installer (placeholder checker-path until the mailbox guard is wired in; installs to `GIT_DIR/shamu-hooks/pre-commit` via per-worktree `core.hooksPath` + `extensions.worktreeConfig` — git 2.50 ignores `GIT_DIR/hooks/` for secondary worktrees)
+- [x] **git 2.50 gotcha:** `-q` / `--quiet` banned pre-flight in the `runGit` wrapper for `revert` and `worktree prune` (throws `GitInvariantError`). Applies to every git subcommand invoked from this package.
 
 **Track 3.C — Mailbox & leases (Parallel)**
 - [ ] `packages/mailbox`: SQLite tables `mailbox` + `leases` (with `holder_run_id`, `holder_worktree_path`) as canonical store; `.shamu/mailbox/<agent>.jsonl` files as transactional materialized export (reconciled on boot)
