@@ -10,6 +10,7 @@
     "./migrations": "./src/migrations.ts",
     "./schema": "./src/schema.ts",
     "./queries/runs": "./src/queries/runs.ts",
+    "./queries/flow-runs": "./src/queries/flow-runs.ts",
     "./queries/events": "./src/queries/events.ts",
     "./queries/audit": "./src/queries/audit.ts",
     "./queries/cost": "./src/queries/cost.ts",

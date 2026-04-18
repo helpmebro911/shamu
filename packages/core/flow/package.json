@@ -1,0 +1,27 @@
+{
+  "name": "@shamu/core-flow",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Typed, resumable DAG workflow engine for Shamu. Composes adapters, supervisor, mailbox, and worktree primitives into content-hashed, inspectable flows.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./bus": "./src/bus.ts",
+    "./engine": "./src/engine.ts",
+    "./events": "./src/events.ts",
+    "./hash": "./src/hash.ts",
+    "./runners": "./src/runners.ts",
+    "./state": "./src/state.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@shamu/shared": "workspace:*",
+    "zod": "4.1.13"
+  }
+}

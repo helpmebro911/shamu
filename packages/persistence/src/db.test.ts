@@ -20,7 +20,13 @@ describe("ShamuDatabase", () => {
   it("applies migrations on open by default", () => {
     const db = openDatabase(join(dir, "db.sqlite"));
     try {
-      expect(db.migrations()).toHaveLength(1);
+      // Count grows with every migration added under `migrations.ts`;
+      // assert on the sentinel (v1 present, v2 present) rather than a
+      // hard-coded total so a future migration addition only updates
+      // migrations.test.ts.
+      const applied = db.migrations();
+      expect(applied.length).toBeGreaterThanOrEqual(2);
+      expect(applied[0]?.version).toBe(1);
     } finally {
       db.close();
     }

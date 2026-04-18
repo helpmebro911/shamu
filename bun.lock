@@ -70,6 +70,14 @@
         "@shamu/shared": "workspace:*",
       },
     },
+    "packages/core/flow": {
+      "name": "@shamu/core-flow",
+      "version": "0.0.0",
+      "dependencies": {
+        "@shamu/shared": "workspace:*",
+        "zod": "4.1.13",
+      },
+    },
     "packages/core/supervisor": {
       "name": "@shamu/core-supervisor",
       "version": "0.0.0",
@@ -281,6 +289,8 @@
     "@shamu/adapters-base": ["@shamu/adapters-base@workspace:packages/adapters/base"],
 
     "@shamu/cli": ["@shamu/cli@workspace:apps/cli"],
+
+    "@shamu/core-flow": ["@shamu/core-flow@workspace:packages/core/flow"],
 
     "@shamu/core-supervisor": ["@shamu/core-supervisor@workspace:packages/core/supervisor"],
 

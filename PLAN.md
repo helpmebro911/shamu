@@ -651,9 +651,9 @@ Three tracks fully parallel — none depends on the others' internals, only on P
 Mostly serial — the flow engine composes earlier primitives.
 
 **Track 4.A — Flow engine (Serial)**
-- [ ] `packages/core/flow`: typed DAG nodes (`AgentStep`, `Conditional`, `Loop`, `HumanGate`)
-- [ ] Serializable state (resumable after crash)
-- [ ] Event stream: per-node progress, per-node cost roll-ups
+- [x] `packages/core/flow`: typed DAG nodes (`AgentStep`, `Conditional`, `Loop`, `HumanGate`)
+- [x] Serializable state (resumable after crash)
+- [x] Event stream: per-node progress, per-node cost roll-ups
 
 **Track 4.B — Canonical flow (Serial after 4.A)**
 - [ ] `flows/plan-execute-review.ts`: GPT-5.4 planner → Opus executor → GPT-5.4 reviewer → loop until approve / max-iterations

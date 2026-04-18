@@ -16,19 +16,50 @@ describe("migrations", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("exposes the initial migration", () => {
+  it("exposes the declared migrations", () => {
     const m = migrations();
-    expect(m).toHaveLength(1);
+    expect(m).toHaveLength(2);
     expect(m[0]?.version).toBe(1);
     expect(m[0]?.name).toBe("initial");
+    expect(m[1]?.version).toBe(2);
+    expect(m[1]?.name).toBe("flow_runs");
   });
 
-  it("applies the initial migration on open", () => {
+  it("applies every pending migration on open", () => {
     const db = openDatabase(join(dir, "db.sqlite"));
     try {
       const record = db.migrations();
-      expect(record).toHaveLength(1);
+      expect(record).toHaveLength(2);
       expect(record[0]?.version).toBe(1);
+      expect(record[1]?.version).toBe(2);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("v2 flow_runs table carries the canonical columns", () => {
+    const db = openDatabase(join(dir, "db.sqlite"));
+    try {
+      const cols = db.prepare("PRAGMA table_info(flow_runs)").all() as Array<{
+        name: string;
+        type: string;
+        notnull: number;
+      }>;
+      const names = cols.map((c) => c.name);
+      expect(names).toEqual(
+        expect.arrayContaining([
+          "flow_run_id",
+          "flow_id",
+          "dag_version",
+          "status",
+          "state_json",
+          "resumed_from",
+          "started_at",
+          "updated_at",
+        ]),
+      );
+      const dagVersion = cols.find((c) => c.name === "dag_version");
+      expect(dagVersion?.type).toBe("INTEGER");
     } finally {
       db.close();
     }

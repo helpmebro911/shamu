@@ -40,11 +40,64 @@ export interface MigrationRecord {
   readonly checksum: string;
 }
 
+/**
+ * v2 — `flow_runs` shape for Phase 4.A.
+ *
+ * v1's `flow_runs` was a placeholder: `swarm_id`, `dag_version` as TEXT,
+ * no status, no started_at. Phase 4.A's flow engine needs the canonical
+ * shape from PLAN § 8 — `flow_id` (separate from swarm), `status`,
+ * `started_at`, `resumed_from`, and `dag_version` as an integer so the
+ * engine can bump it atomically alongside content-hash changes.
+ *
+ * We drop the v1 placeholder table instead of ALTER'ing because (a) no
+ * production row has ever been written to it (the engine didn't exist);
+ * (b) SQLite's `ALTER TABLE` is restrictive enough that emitting a
+ * replacement is clearer than surviving a dozen DDL incantations.
+ *
+ * Compatibility detail: `INITIAL_SCHEMA_SQL` runs on every boot (via
+ * `ensureBootstrapTables`). Its v1 statement
+ *   `CREATE INDEX IF NOT EXISTS idx_flow_runs_swarm ON flow_runs(swarm_id)`
+ * would fail post-v2 because `swarm_id` no longer exists. SQLite treats
+ * `CREATE INDEX IF NOT EXISTS <name>` as a no-op when an index by that
+ * name already exists, regardless of whether the new definition would be
+ * valid. So v2 creates an `idx_flow_runs_swarm` placeholder pointing at
+ * `flow_id` — functionally useful as a secondary lookup and just enough
+ * to make v1's re-execution a no-op. It intentionally shares a name with
+ * the v1 index; readers should consult the column list, not the index
+ * name, to understand the semantics.
+ */
+const MIGRATION_V2_FLOW_RUNS_SQL = `
+DROP TABLE IF EXISTS flow_runs;
+
+CREATE TABLE IF NOT EXISTS flow_runs (
+  flow_run_id   TEXT PRIMARY KEY,
+  flow_id       TEXT NOT NULL,
+  dag_version   INTEGER NOT NULL,
+  status        TEXT NOT NULL,
+  state_json    TEXT NOT NULL,
+  resumed_from  TEXT,
+  started_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_flow_runs_flow ON flow_runs(flow_id);
+CREATE INDEX IF NOT EXISTS idx_flow_runs_status ON flow_runs(status);
+-- Placeholder that keeps v1's INITIAL_SCHEMA_SQL re-exec a no-op
+-- (name match suppresses the CREATE INDEX IF NOT EXISTS, even though
+-- the v1 definition references the now-dropped swarm_id column).
+CREATE INDEX IF NOT EXISTS idx_flow_runs_swarm ON flow_runs(flow_id);
+`;
+
 const MIGRATIONS: readonly Migration[] = Object.freeze([
   {
     version: 1,
     name: "initial",
     sql: INITIAL_SCHEMA_SQL,
+  },
+  {
+    version: 2,
+    name: "flow_runs",
+    sql: MIGRATION_V2_FLOW_RUNS_SQL,
   },
 ]);
 
