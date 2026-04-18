@@ -1,0 +1,38 @@
+{
+  "name": "shamu",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Multi-agent coding orchestrator — runs heterogeneous coding agents as a swarm with shared SQLite state, supervisor watchdogs, and agent-ci quality gates.",
+  "license": "MIT",
+  "author": "Chris Watson",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit && turbo run typecheck",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "build": "turbo run build",
+    "clean": "turbo run clean && rm -rf .turbo coverage",
+    "agent-ci": "bun scripts/agent-ci.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.12",
+    "@redwoodjs/agent-ci": "0.10.7",
+    "@types/bun": "1.3.12",
+    "@types/node": "22.13.1",
+    "@vitest/coverage-v8": "4.1.4",
+    "turbo": "2.9.6",
+    "typescript": "6.0.3",
+    "vitest": "4.1.4"
+  },
+  "engines": {
+    "bun": ">=1.3.11"
+  },
+  "packageManager": "bun@1.3.11"
+}

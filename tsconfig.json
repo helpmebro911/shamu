@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["bun", "node"]
+  },
+  "include": ["vitest.config.ts", "vitest.workspace.ts", "scripts/**/*.ts"]
+}

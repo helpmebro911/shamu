@@ -1,0 +1,27 @@
+# Shamu — agent-ci dogfood configuration
+#
+# @redwoodjs/agent-ci does not consume this file directly; it discovers and
+# executes standard GitHub Actions workflows under .github/workflows/. This
+# file documents, for both humans and the supervisor agents, which workflow
+# constitutes the local quality gate for THIS repo and how to invoke it.
+#
+# Invoke locally:
+#   bun run agent-ci                  # alias for: agent-ci run --all --quiet
+#   npx @redwoodjs/agent-ci run --all --quiet
+#
+# The `--all` discovery resolves the same pull_request/push workflows that
+# GitHub would run on CI. Shamu's own packages/ci wrapper (Phase 5) will
+# consume agent-ci's run-state.json output; until then, the wrapper is the
+# CLI itself and a non-zero exit means "not green."
+
+workflow: .github/workflows/ci.yml
+# Filesystem bit-for-bit compatibility with GitHub-hosted ubuntu-latest is
+# provided by agent-ci's official runner image. macos-latest matrix entries
+# are skipped locally (no macOS container); GitHub's matrix covers them.
+matrix_subset:
+  os: [ubuntu-latest]
+# The canonical gate — every shamu agent patch must pass `bun run agent-ci`
+# before the supervisor marks it ready for review (Phase 5.C, PLAN.md).
+gate:
+  command: bun run agent-ci
+  required_for_merge: true
