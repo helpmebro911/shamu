@@ -1,13 +1,48 @@
 /**
  * `shamu linear tunnel` — provision a cloudflared route that exposes ONLY
- * `/webhooks/linear`. Lands in Phase 6 (webhook receiver + cloudflared
- * shell-out). Phase 1.D is a scaffold that enforces the dashboard-never-
- * exposed invariant in its help text and logs the request.
+ * `/webhooks/linear`. Phase 6.B wires this to `@shamu/linear-webhook`'s
+ * tunnel helper: spawns `cloudflared tunnel --url http://<host>:<port>`,
+ * pipes stdout/stderr through so the user sees the ephemeral URL, and
+ * reaps the child cleanly on SIGTERM.
+ *
+ * The receiver itself enforces the path-scope restriction (every other
+ * route on the listener returns 404); cloudflared cannot filter by prefix.
+ * This command's output reminds operators of that invariant per G10.
  */
 
+import {
+  DEFAULT_HOST,
+  DEFAULT_PORT,
+  ENV_HOST,
+  ENV_PORT,
+  scopeMessage,
+  startTunnel,
+  TunnelBootError,
+  WEBHOOK_PATH,
+} from "@shamu/linear-webhook";
 import { defineCommand } from "citty";
-import type { ExitCodeValue } from "../../exit-codes.ts";
-import { commonArgs, notWiredYet, outputMode, withServices } from "../_shared.ts";
+import { ExitCode, type ExitCodeValue } from "../../exit-codes.ts";
+import { writeDiag } from "../../output.ts";
+import { commonArgs, done, outputMode, withServices } from "../_shared.ts";
+
+function resolvePort(explicit: string | undefined): number {
+  if (explicit !== undefined && explicit.length > 0) {
+    const parsed = Number.parseInt(explicit, 10);
+    if (!Number.isNaN(parsed) && parsed >= 0) return parsed;
+  }
+  const env = process.env[ENV_PORT];
+  if (env && env.length > 0) {
+    const parsed = Number.parseInt(env, 10);
+    if (!Number.isNaN(parsed) && parsed >= 0) return parsed;
+  }
+  return DEFAULT_PORT;
+}
+
+function resolveHost(): string {
+  const env = process.env[ENV_HOST];
+  if (env && env.length > 0) return env;
+  return DEFAULT_HOST;
+}
 
 export const linearTunnelCommand = defineCommand({
   meta: {
@@ -18,7 +53,7 @@ export const linearTunnelCommand = defineCommand({
     ...commonArgs,
     "webhook-port": {
       type: "string",
-      description: "Local port the webhook receiver listens on (default: from config).",
+      description: "Local port the webhook receiver listens on (default: 7357 or env).",
     },
   },
   async run({ args }): Promise<ExitCodeValue> {
@@ -26,16 +61,58 @@ export const linearTunnelCommand = defineCommand({
     const svc = await withServices(args);
     if (!svc.ok) return svc.exitCode;
 
-    svc.services.logger.info("linear tunnel: accepted", {
-      webhookPort: args["webhook-port"] ?? null,
+    const port = resolvePort(args["webhook-port"]);
+    const host = resolveHost();
+
+    svc.services.logger.info("linear tunnel: starting cloudflared", {
+      host,
+      port,
+      path: WEBHOOK_PATH,
     });
 
-    return notWiredYet({
-      mode,
-      command: "shamu linear tunnel",
-      phase: "Phase 6",
-      reason:
-        "cloudflared shell-out + webhook receiver land in Phase 6. Tunnel scope is restricted to /webhooks/linear only; dashboard port is never exposed (G10).",
+    if (mode !== "json") {
+      process.stdout.write(`${scopeMessage(WEBHOOK_PATH)}\n`);
+    }
+
+    // Optional override so operators (and tests) can point at a specific
+    // cloudflared binary without depending on PATH resolution. Real usage
+    // almost always uses the PATH default.
+    const binOverride = process.env.SHAMU_LINEAR_TUNNEL_BIN;
+    let handle: ReturnType<typeof startTunnel>;
+    try {
+      handle = startTunnel({
+        host,
+        port,
+        ...(binOverride && binOverride.length > 0 ? { bin: binOverride } : {}),
+      });
+    } catch (cause) {
+      const message =
+        cause instanceof TunnelBootError
+          ? cause.message
+          : cause instanceof Error
+            ? cause.message
+            : String(cause);
+      if (mode === "json") {
+        process.stdout.write(
+          `${JSON.stringify({
+            kind: "error",
+            category: "tunnel-boot",
+            command: "shamu linear tunnel",
+            message,
+          })}\n`,
+        );
+      } else {
+        writeDiag(`shamu linear tunnel: ${message}`);
+      }
+      return done(ExitCode.INTERNAL);
+    }
+
+    svc.services.logger.info("linear tunnel: cloudflared launched", { pid: handle.pid });
+    const exit = await handle.exited;
+    svc.services.logger.info("linear tunnel: cloudflared exited", {
+      code: exit.code,
+      signal: exit.signal,
     });
+    return done(exit.code === 0 || exit.signal === "SIGTERM" ? ExitCode.OK : ExitCode.INTERNAL);
   },
 });

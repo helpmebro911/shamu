@@ -716,9 +716,9 @@ The live end-to-end (`SHAMU_FLOW_LIVE=1`) smoke against real Claude + Codex CLIs
 > **6.A architecture note (2026-04-18):** PLAN originally scoped OAuth 2.1 DCR against the `mcp.linear.app/mcp` MCP server. The user provided a personal API key at kickoff, and GraphQL is a strict subset of what Phase 6 needs (issue read / label + comment + status mutations). OAuth DCR is deferred as a Phase 6 followup in HANDOFF.md — revisit if/when shamu is hosted multi-tenant. The credential-store coordinates (`LINEAR_CREDENTIAL_SERVICE` / `LINEAR_CREDENTIAL_ACCOUNT`) are exported so a future OAuth adapter can reuse or sibling them without migration.
 
 **Track 6.B — Webhook receiver (Parallel with 6.A)**
-- [ ] `packages/linear/webhook`: Bun HTTP server; signature verification
-- [ ] Helper: `shamu linear tunnel` wraps cloudflared for local dev
-- [ ] Subscriptions: issue-label-added, comment-created, status-changed
+- [x] `packages/linear/webhook`: Bun HTTP server; HMAC-SHA256 signature verification + ±5-min timestamp window + 10-min nonce-LRU replay protection (`@shamu/linear-webhook`)
+- [x] Helper: `shamu linear tunnel` wraps cloudflared; receiver 404s every path other than `/webhooks/linear` (G10 scope enforcement)
+- [x] Subscriptions: `issue-label-added`, `comment-created`, `status-changed` (typed discriminated union; other event types accepted with 202 so Linear stops retrying, but not surfaced to consumers)
 
 **Track 6.C — Work-intake conventions (Serial after 6.A + 6.B)**
 - [ ] Label conventions: `shamu:ready` → picked up; `shamu:in-progress` → working; `shamu:review` → awaiting human; `shamu:blocked` → escalated
