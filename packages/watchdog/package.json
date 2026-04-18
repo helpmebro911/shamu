@@ -1,0 +1,31 @@
+{
+  "name": "@shamu/watchdog",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Out-of-process watchdog: four signal types (checkpoint_lag, no_write_activity, cost_velocity, tool_loop) with typed confidence values and two-observation agreement rule before promoting to escalations. Reads SQLite read-only so a stalled orchestrator cannot silence it.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./agreement": "./src/agreement.ts",
+    "./canonicalize": "./src/canonicalize.ts",
+    "./events": "./src/events.ts",
+    "./store": "./src/store.ts",
+    "./subprocess": "./src/subprocess.ts",
+    "./types": "./src/types.ts",
+    "./watchdog": "./src/watchdog.ts",
+    "./signals/checkpoint-lag": "./src/signals/checkpoint-lag.ts",
+    "./signals/cost-velocity": "./src/signals/cost-velocity.ts",
+    "./signals/no-write-activity": "./src/signals/no-write-activity.ts",
+    "./signals/tool-loop": "./src/signals/tool-loop.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=./coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@shamu/persistence": "workspace:*",
+    "@shamu/shared": "workspace:*"
+  }
+}

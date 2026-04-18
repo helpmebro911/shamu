@@ -99,6 +99,14 @@
         "zod": "4.1.13",
       },
     },
+    "packages/watchdog": {
+      "name": "@shamu/watchdog",
+      "version": "0.0.0",
+      "dependencies": {
+        "@shamu/persistence": "workspace:*",
+        "@shamu/shared": "workspace:*",
+      },
+    },
     "packages/worktree": {
       "name": "@shamu/worktree",
       "version": "0.0.0",
@@ -281,6 +289,8 @@
     "@shamu/persistence": ["@shamu/persistence@workspace:packages/persistence"],
 
     "@shamu/shared": ["@shamu/shared@workspace:packages/shared"],
+
+    "@shamu/watchdog": ["@shamu/watchdog@workspace:packages/watchdog"],
 
     "@shamu/worktree": ["@shamu/worktree@workspace:packages/worktree"],
 

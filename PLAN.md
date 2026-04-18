@@ -631,13 +631,14 @@ Three tracks fully parallel — none depends on the others' internals, only on P
 - [x] Pre-commit guard: `checkStagedPaths` (pure) + `runPreCommitGuard` (shells `git diff --cached --name-only`)
 - [x] Contract tests: 52 tests across 7 files (auth / mailbox / leases / reclaim / pre-commit / materialize / globs); `from_agent` forgery rejected at the type level, racing-lease one-wins, stale-lease-with-dirty-holder refuses cleanly
 
-**Track 3.D — Watchdog (Serial after 3.A supervisor + any adapter emitting `checkpoint` events)**
-- [ ] `packages/watchdog`: out-of-process Bun subprocess, shares SQLite read-only
-- [ ] Four signals with typed confidence values: `checkpoint_lag`, `no_write_activity`, `cost_velocity`, `tool_loop`
-- [ ] Vendor-aware write-tool allowlist per adapter (Claude: `Edit|Write|Bash`; Codex: `apply_patch|shell`; …)
-- [ ] Trip rule: two observations at `confidence ≥ medium` must agree; single-signal trips logged as `watchdog.hint` only
-- [ ] Argument canonicalization + secret redaction before hashing for `tool_loop`
-- [ ] Integration test: manufactured stall trips watchdog within expected window; manufactured cold-start shows `confidence=unknown` and no false escalation
+**Track 3.D — Watchdog (Serial after 3.A supervisor + any adapter emitting `checkpoint` events)** ✅
+- [x] `packages/watchdog`: out-of-process Bun subprocess (`spawnWatchdogSubprocess` + `entry.ts`), shares SQLite read-only via `openReadOnlyDatabase` (package-local; `@shamu/persistence` untouched)
+- [x] Four signals with typed confidence values: `checkpoint_lag`, `no_write_activity`, `cost_velocity`, `tool_loop` — each a pure evaluator plus DB-backed wrapper
+- [x] Vendor-aware write-tool allowlist: Claude `Edit|Write|Bash`, Codex `apply_patch|shell`
+- [x] Trip rule: `AgreementBuffer` promotes to `watchdog.alert` only when two distinct signals fire at `confidence ≥ medium` within the window; singleton or unknown-confidence trips emit as `watchdog.hint`
+- [x] `canonicalize.ts`: whitespace-normalize-before-JSON + `@shamu/shared/redactor` + sorted-key stringify; verified via test that secret-bearing args with different tokens hash identically
+- [x] Integration test `manufactured-stall.test.ts`: event stream + simulated clock proves the alert fires inside the expected window AND that a cold-started role (`< 10 checkpoints`) emits `confidence=unknown` with no false escalation
+- [x] `runWatchdog` is pure (`now`, `emit`, `state` injected) — no timers in the core; `setInterval`-equivalent loop lives only in `subprocess.ts`/`entry.ts`
 
 **Exit:** two Claude workers in parallel worktrees coordinate via mailbox; supervisor restarts a killed worker under policy; watchdog fires on a manufactured stall; **all six Phase 0.C manufactured scenarios reproduced as contract tests** (clean concurrent, overlapping lines, non-overlapping same-file, cross-file semantic, stale-lease reclaim, 10-worktree cleanup cost); diff-overlap check + stale-lease last-touch check both implemented and green.
 
