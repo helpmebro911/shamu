@@ -640,7 +640,9 @@ Three tracks fully parallel — none depends on the others' internals, only on P
 - [x] Integration test `manufactured-stall.test.ts`: event stream + simulated clock proves the alert fires inside the expected window AND that a cold-started role (`< 10 checkpoints`) emits `confidence=unknown` with no false escalation
 - [x] `runWatchdog` is pure (`now`, `emit`, `state` injected) — no timers in the core; `setInterval`-equivalent loop lives only in `subprocess.ts`/`entry.ts`
 
-**Exit:** two Claude workers in parallel worktrees coordinate via mailbox; supervisor restarts a killed worker under policy; watchdog fires on a manufactured stall; **all six Phase 0.C manufactured scenarios reproduced as contract tests** (clean concurrent, overlapping lines, non-overlapping same-file, cross-file semantic, stale-lease reclaim, 10-worktree cleanup cost); diff-overlap check + stale-lease last-touch check both implemented and green.
+**Exit (primitives):** the four packages are published, each unit-tested; supervisor restarts a simulated worker under policy; watchdog fires on a manufactured stall and shows `confidence=unknown` for cold-starts; stale-lease last-touch check is implemented and green; `@shamu/worktree` GC classifies a 10-worktree fixture correctly.
+
+**Deferred to Phase 4 (composition, not a Phase 3 primitive):** two real Claude workers in parallel worktrees coordinate via mailbox end-to-end; the remaining five Phase 0.C manufactured scenarios (clean concurrent, overlapping lines, non-overlapping same-file, cross-file semantic, 10-worktree cleanup cost) reproduced as contract tests against the live flow; diff-overlap check wired into the integrate step of the patch lifecycle. These all require the flow engine to compose primitives; Phase 3 deliberately stops at the primitive layer.
 
 ---
 
@@ -663,7 +665,7 @@ Mostly serial — the flow engine composes earlier primitives.
 - [ ] `shamu flow status <flow-run>` — per-node breakdown
 - [ ] Structured JSON logs per flow-run for later replay
 
-**Exit:** flow completes end-to-end on a sample repo; reviewer reject causes a clean executor re-run with prior diff + reviewer notes in context.
+**Exit:** flow completes end-to-end on a sample repo; reviewer reject causes a clean executor re-run with prior diff + reviewer notes in context; **Phase 3-deferred composition exits**: two real workers in parallel worktrees coordinate via mailbox, remaining Phase 0.C scenarios reproduced as contract tests against the live flow, diff-overlap check wired into the integrate step of the patch lifecycle.
 
 ---
 
@@ -815,13 +817,13 @@ Phases 0, 3, and 7 are the biggest parallelization wins — up to 5, 3, and 7 co
 - **raw_events retention:** 14-day default accepted.
 - **Keychain UX:** "always allow this app" is the default — non-annoying for autonomous runs. Tradeoff (keychain readable if shamu itself is compromised) documented.
 - **Autonomy ceiling:** **full autonomy is the design goal**, not an eventual option. Consequences: G2 (egress broker), G3 (MCP trust), G4 (path-scope at dispatch), G6 (mailbox authentication), G7 (audit HMAC chain), and G11 (A2A trust roots — if A2A ships) must all be green before the autonomous daemon goes live. Promoted out of "Phase 8 nice-to-have" into concrete phase blockers.
+- **Licensing:** MIT (decided during Phase 1 bootstrap; reflected in root `package.json`).
+- **Naming:** `shamu` stays (confirmed at Phase 3 kickoff, 2026-04-17).
 
 ## Remaining open questions
 
-1. **Licensing.** MIT, Apache-2.0, or AGPL? MIT maximizes adoption; AGPL protects if a vendor productizes it.
-2. **Naming.** Keep `shamu`? Want me to workshop alternatives? (Killer whales hunt in pods — the metaphor holds.)
-3. **A2A in v1?** Autonomous mode is a design goal, but A2A (remote peers over JSON-RPC with Signed Agent Cards) multiplies attack surface. Phase 8 Track 8.B is currently "optional for v1." Confirm whether to treat it as must-ship or defer.
-4. **~~Phase 0.B~~** — resolved: CLI-auth path via `vendorCliPath` works for both Claude and Codex; no env-var keys needed.
+1. **A2A in v1?** Autonomous mode is a design goal, but A2A (remote peers over JSON-RPC with Signed Agent Cards) multiplies attack surface. Phase 8 Track 8.B is currently "optional for v1." Confirm whether to treat it as must-ship or defer.
+2. **~~Phase 0.B~~** — resolved: CLI-auth path via `vendorCliPath` works for both Claude and Codex; no env-var keys needed.
 
 ## Immediate next step
 
