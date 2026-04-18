@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **shamu** (1351 symbols, 3400 relationships, 100 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **shamu** (1366 symbols, 3417 relationships, 101 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -99,3 +99,18 @@ To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+---
+
+# Shamu — Project Pipeline
+
+This repo is a multi-agent coding orchestrator being built *by* a swarm of coding agents. If you're starting a session on this project:
+
+1. **Load the `shamu-dev` skill** first (`.claude/skills/shamu-dev/SKILL.md`) — it's the contract for how we work across sessions.
+2. Read **`HANDOFF.md`** at the repo root — current state, what's next, what's in flight, user-owed answers.
+3. Read **`PLAN.md`** §§ "Core architecture" + "Phased delivery → Phase N" (where N is the current phase from HANDOFF).
+4. Check **`docs/phase-0/*.md`** for spike findings that informed later phases.
+
+The `shamu-dev` skill covers the full pipeline (phase intake → swarm spawn → review → commit → close), sub-agent prompt template, verification gates, commit discipline, recurring constraints, and session-continuity rules. Loading it replaces manually re-reading PLAN.md end-to-end.
+
+Do not rely on session-scoped task trackers for anything that must survive session boundaries. HANDOFF.md is the source of truth for "what's next."
