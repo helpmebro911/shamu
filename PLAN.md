@@ -764,7 +764,7 @@ Biggest parallel fan of any phase. Six adapter tracks plus one web-dashboard tra
 
 ### Phase 8 — Autonomous mode + A2A + ops polish
 
-Crosses the CLI-process → long-lived-service line. A2A stays optional; autonomous loop is the headline.
+Crosses the CLI-process → long-lived-service line. **A2A is v1 scope** (confirmed 2026-04-18); autonomous loop is the headline; both tracks gate on the autonomous-daemon go-live.
 
 **Track 8.A — Autonomous loop (Parallel)**
 - [ ] Daemon mode: long-lived process subscribed to Linear webhooks, picks up `shamu:ready` issues, runs canonical flow
@@ -772,7 +772,7 @@ Crosses the CLI-process → long-lived-service line. A2A stays optional; autonom
 - [ ] Graceful shutdown: drain running runs into a resumable state before exit
 - [ ] 24-hour soak test on staging Linear project
 
-**Track 8.B — A2A server (Parallel with 8.A, optional for v1)**
+**Track 8.B — A2A server (Parallel with 8.A; v1 scope)**
 - [ ] `packages/protocol/a2a`: A2A v1.0 server + client
 - [ ] Signed Agent Cards: card signing, card verification on inbound
 - [ ] JSON-RPC + SSE transport
@@ -825,14 +825,14 @@ Phases 0, 3, and 7 are the biggest parallelization wins — up to 5, 3, and 7 co
 - **GitHub Actions runtime:** never. Always dev-laptop; no env-var credential fallback needed.
 - **raw_events retention:** 14-day default accepted.
 - **Keychain UX:** "always allow this app" is the default — non-annoying for autonomous runs. Tradeoff (keychain readable if shamu itself is compromised) documented.
-- **Autonomy ceiling:** **full autonomy is the design goal**, not an eventual option. Consequences: G2 (egress broker), G3 (MCP trust), G4 (path-scope at dispatch), G6 (mailbox authentication), G7 (audit HMAC chain), and G11 (A2A trust roots — if A2A ships) must all be green before the autonomous daemon goes live. Promoted out of "Phase 8 nice-to-have" into concrete phase blockers.
+- **Autonomy ceiling:** **full autonomy is the design goal**, not an eventual option. Consequences: G2 (egress broker), G3 (MCP trust), G4 (path-scope at dispatch), G6 (mailbox authentication), G7 (audit HMAC chain), and G11 (A2A trust roots) must all be green before the autonomous daemon goes live. Promoted out of "Phase 8 nice-to-have" into concrete phase blockers.
 - **Licensing:** MIT (decided during Phase 1 bootstrap; reflected in root `package.json`).
 - **Naming:** `shamu` stays (confirmed at Phase 3 kickoff, 2026-04-17).
+- **A2A in v1 (confirmed 2026-04-18):** must-ship. Phase 8 Track 8.B is no longer optional. Consequence: G11 (A2A trust roots — Signed Agent Cards, card issuer bearer-token binding, JSON-RPC + SSE transport hardening) is a concrete autonomous-daemon go-live blocker alongside G2/G3/G4/G6/G7. The attack-surface concern noted earlier is managed by the threat-model controls, not by deferring the feature.
 
 ## Remaining open questions
 
-1. **A2A in v1?** Autonomous mode is a design goal, but A2A (remote peers over JSON-RPC with Signed Agent Cards) multiplies attack surface. Phase 8 Track 8.B is currently "optional for v1." Confirm whether to treat it as must-ship or defer.
-2. **~~Phase 0.B~~** — resolved: CLI-auth path via `vendorCliPath` works for both Claude and Codex; no env-var keys needed.
+None blocking. (Historical: A2A-in-v1 answered 2026-04-18; `vendorCliPath` Phase-0.B resolved earlier.)
 
 ## Immediate next step
 

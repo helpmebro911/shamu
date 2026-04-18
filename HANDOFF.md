@@ -129,11 +129,7 @@ Natural hook points Phase 4 leaves ready for Phase 5:
 
 ## Open questions for the user
 
-From PLAN.md § "Remaining open questions":
-
-1. **A2A in v1** — must-ship or defer? (Phase 8 Track 8.B)
-
-Does not block Phase 5.
+None blocking. (PLAN's "Remaining open questions" is now empty; A2A-in-v1 answered 2026-04-18 — must-ship, Phase 8 Track 8.B is v1 scope.)
 
 ## Already-answered decisions (don't re-litigate)
 
@@ -153,6 +149,7 @@ Does not block Phase 5.
 - **`diffOverlapCheck` diffs `<mergeBase>..<runBranch>`** to isolate each run's own contribution (not `integrationBranch`, which would conflate later runs into earlier ones' path sets). `RunMergeRecord` carries `branch` so the caller supplies the ref. PLAN § Patch lifecycle updated in phase-4 close-out.
 - **Canonical flow module contract** is `{ flowDefinition, registerRunners, name?, parseOptions? }` — `@shamu/flows-plan-execute-review` is the reference implementation; `shamu flow run --flow <module-spec>` is the consumer.
 - **Composition layer lives in `@shamu/core-composition`** — not inside `@shamu/core-supervisor` / `@shamu/mailbox` / `@shamu/watchdog`, so none of those primitives drag in each other's event taxonomies.
+- **A2A is v1 scope (confirmed 2026-04-18).** Phase 8 Track 8.B is no longer optional. G11 (Signed Agent Cards + bearer-token binding + JSON-RPC + SSE transport hardening) joins G2/G3/G4/G6/G7 as an autonomous-daemon go-live blocker.
 
 ## Micro-decisions that aren't in PLAN.md but matter
 
