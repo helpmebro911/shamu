@@ -68,9 +68,44 @@ describe("prompts", () => {
     });
     expect(r.system).toMatch(/```json```/);
     expect(r.system).toMatch(/"verdict"/);
+    expect(r.system).toMatch(/requires_ci_rerun/);
     expect(r.user).toContain("task-a");
     expect(r.user).toContain("add a readme heading");
     expect(r.user).toContain("added a heading to README.md");
+    // No CI section when ci is absent.
+    expect(r.user).not.toMatch(/CI result:/);
+    expect(r).toMatchSnapshot();
+  });
+
+  test("reviewer prompt includes CI section when green CI is supplied", () => {
+    const r = buildReviewerPrompt({
+      task: "task-a",
+      plan: samplePlan,
+      execution: sampleExec,
+      ci: { status: "green", excerpt: null },
+    });
+    expect(r.user).toMatch(/CI result:/);
+    expect(r.user).toMatch(/status: green/);
+    expect(r.user).toContain("(no excerpt available)");
+    expect(r).toMatchSnapshot();
+  });
+
+  test("reviewer prompt includes CI excerpt verbatim on red", () => {
+    const r = buildReviewerPrompt({
+      task: "task-a",
+      plan: samplePlan,
+      execution: sampleExec,
+      ci: {
+        status: "red",
+        excerpt: "agent-ci run run-42: RED\n  workflows: 1, failed jobs: 1\n  - test-suite failed",
+      },
+    });
+    expect(r.user).toMatch(/CI result:/);
+    expect(r.user).toMatch(/status: red/);
+    expect(r.user).toContain("agent-ci run run-42: RED");
+    expect(r.user).toContain("test-suite failed");
+    // System prompt carries the red-CI rule.
+    expect(r.system).toMatch(/MUST NOT emit\s*\n?\s*`approve`/);
     expect(r).toMatchSnapshot();
   });
 });

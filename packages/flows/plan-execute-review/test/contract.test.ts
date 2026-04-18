@@ -35,13 +35,14 @@ describe("module surface", () => {
     expect(() => flowModule.parseOptions({ maxIterations: "0" })).toThrow(/positive integer/);
   });
 
-  test("registerRunners installs all four runners on the registry", () => {
+  test("registerRunners installs all five runners on the registry", () => {
     const registry = new RunnerRegistry();
     flowModule.registerRunners(registry, {
       workspaceCwd: "/tmp/shamu-contract",
     });
     expect(registry.has("planner")).toBe(true);
     expect(registry.has("executor")).toBe(true);
+    expect(registry.has("ci")).toBe(true);
     expect(registry.has("reviewer")).toBe(true);
     expect(registry.has("loop-predicate")).toBe(true);
   });
@@ -69,9 +70,11 @@ describe("module surface", () => {
       | "plannerModel"
       | "executorModel"
       | "reviewerModel"
-      | "__adapterOverride";
-    // All real option keys (sans the __adapterOverride test seam) must map
-    // into the known set.
+      | "ci"
+      | "__adapterOverride"
+      | "__ciRunOverride";
+    // All real option keys (sans the __-prefixed test seams) must map into
+    // the known set.
     expectTypeOf<keyof RegisterRunnersOptions>().toExtend<ExpectedKeys>();
     expectTypeOf<RegisterRunnersOptions["workspaceCwd"]>().toEqualTypeOf<string>();
     expectTypeOf<NonNullable<RegisterRunnersOptions["maxIterations"]>>().toEqualTypeOf<number>();

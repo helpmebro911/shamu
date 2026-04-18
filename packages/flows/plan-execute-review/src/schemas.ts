@@ -13,6 +13,7 @@
  * the compile-time contract is impossible.
  */
 
+import type { CIRunSummary } from "@shamu/ci";
 import { z } from "zod";
 
 /**
@@ -62,9 +63,14 @@ export type ExecutorOutput = z.infer<typeof ExecutorOutputSchema>;
  * `concerns` is separate from `feedback` so a CLI/TUI sink can render a
  * bulleted list of issues even when the overall verdict is `approve`
  * (reviewer might approve with minor follow-ups).
+ *
+ * `requires_ci_rerun` is emitted when the reviewer believes a red CI is an
+ * infra/flake issue and a clean rerun is warranted (rather than a code fix).
+ * The reviewer runner skips re-invoking the executor and re-runs CI only;
+ * the loop predicate treats this the same as revise at iteration cap.
  */
 export const ReviewerVerdictSchema = z.object({
-  verdict: z.enum(["approve", "revise"]),
+  verdict: z.enum(["approve", "revise", "requires_ci_rerun"]),
   feedback: z.string(),
   iterationsUsed: z.number().int().positive(),
   concerns: z.array(z.string()),
@@ -78,9 +84,39 @@ export type ReviewerVerdict = z.infer<typeof ReviewerVerdictSchema>;
  * because the model does not know its own iteration number reliably.
  */
 export const ReviewerModelOutputSchema = z.object({
-  verdict: z.enum(["approve", "revise"]),
+  verdict: z.enum(["approve", "revise", "requires_ci_rerun"]),
   feedback: z.string(),
   concerns: z.array(z.string()),
 });
 
 export type ReviewerModelOutput = z.infer<typeof ReviewerModelOutputSchema>;
+
+/**
+ * CI node output. The `ci` runner wraps `@shamu/ci`'s `runGate` result and
+ * projects it onto this shape so the reviewer has a stable validation
+ * surface. We DO NOT pin the full `CIRunSummary` structure in the zod
+ * schema -- that's `@shamu/ci`'s concern and will grow fields over time;
+ * the reviewer only reads `status` + `reviewerExcerpt`, which is all we
+ * validate strictly. `summary.passthrough()` lets the rest of the summary
+ * flow through without coupling the flow package to `@shamu/ci`'s internal
+ * shape. The TypeScript type, however, references `CIRunSummary` directly
+ * so producers (the `ci` runner) pass summary data through without a cast.
+ */
+export const CINodeOutputSchema = z.object({
+  kind: z.enum(["CIRed", "PatchReady"]),
+  runId: z.string(),
+  summary: z
+    .object({
+      runId: z.string(),
+      status: z.enum(["green", "red", "unknown"]),
+    })
+    .passthrough(),
+  reviewerExcerpt: z.string().nullable(),
+});
+
+export interface CINodeOutput {
+  readonly kind: "CIRed" | "PatchReady";
+  readonly runId: string;
+  readonly summary: CIRunSummary;
+  readonly reviewerExcerpt: string | null;
+}

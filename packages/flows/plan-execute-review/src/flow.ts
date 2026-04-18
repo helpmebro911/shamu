@@ -18,13 +18,21 @@
  * the reviewer's verdict and records completion. It does NOT drive
  * re-execution -- that work already happened inside the reviewer runner.
  *
+ * Phase 5.B wire-up: the `ci` node runs between `execute` and `review`.
+ * Inside the reviewer's internal re-execute loop, the reviewer runner also
+ * re-runs CI (via the same helper the `ci` runner uses) so every iteration
+ * sees a fresh CI result. The engine's Loop body list is self-describing
+ * (execute, ci, review) even though the body does not re-execute in 4.A;
+ * once the engine upgrades, the reviewer-internal loop collapses.
+ *
  * This is tracked as a followup: once the engine's Loop node can re-execute
  * body nodes, we collapse the reviewer-internal loop and restore the
  * predicate-driven dance. For now the contract is:
- *   plan  (runner: "planner")
+ *   plan   (runner: "planner")
  *   -> execute (runner: "executor")
- *     -> review (runner: "reviewer")       -- internally re-runs executor+review
- *       -> loop (predicate: "loop-predicate") -- terminator, zero cost
+ *     -> ci     (runner: "ci")
+ *       -> review (runner: "reviewer")          -- internally re-runs executor+ci+review
+ *         -> loop (predicate: "loop-predicate") -- terminator, zero cost
  *
  * The loop's `maxIterations` matches the reviewer runner's own cap so the
  * bound is consistent regardless of which layer first observes it.
@@ -35,6 +43,7 @@ import { DEFAULT_MAX_ITERATIONS, FLOW_ID, FLOW_VERSION } from "./config.ts";
 
 const planId = nodeId("plan");
 const executeId = nodeId("execute");
+const ciId = nodeId("ci");
 const reviewId = nodeId("review");
 const loopId = nodeId("loop");
 
@@ -64,13 +73,27 @@ const executeNode: AgentStep = {
   maxRetries: 2,
 };
 
+const ciNode: AgentStep = {
+  kind: "agent_step",
+  id: ciId,
+  role: "ci",
+  runner: "ci",
+  inputs: {},
+  dependsOn: [executeId],
+  // CI is deterministic; retries belong inside the CI tool (agent-ci's own
+  // workflow retry), not in the DAG. A boot-level failure (no GITHUB_REPO,
+  // bin missing) is not retriable here -- surface it to the reviewer as a
+  // failed NodeOutput instead.
+  maxRetries: 0,
+};
+
 const reviewNode: AgentStep = {
   kind: "agent_step",
   id: reviewId,
   role: "reviewer",
   runner: "reviewer",
   inputs: {},
-  dependsOn: [executeId],
+  dependsOn: [ciId],
   maxRetries: 1,
 };
 
@@ -79,8 +102,9 @@ const loopNode: Loop = {
   id: loopId,
   // `body` is a reference list; per the trade-off note above, the engine
   // does not re-invoke body nodes in 4.A. We still name them so the DAG is
-  // self-describing for future upgrades.
-  body: [executeId, reviewId],
+  // self-describing for future upgrades. CI is a body member because a
+  // future iteration upgrade must re-run it per pass.
+  body: [executeId, ciId, reviewId],
   until: "loop-predicate",
   maxIterations: DEFAULT_MAX_ITERATIONS,
   dependsOn: [reviewId],
@@ -89,6 +113,6 @@ const loopNode: Loop = {
 export const flowDefinition: FlowDefinition = {
   id: FLOW_ID,
   version: FLOW_VERSION,
-  nodes: [planNode, executeNode, reviewNode, loopNode],
+  nodes: [planNode, executeNode, ciNode, reviewNode, loopNode],
   entry: planId,
 };

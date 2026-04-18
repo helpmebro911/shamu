@@ -30,6 +30,7 @@ export type {
   PlannerPrompt,
   PlannerPromptInput,
   ReviewerPrompt,
+  ReviewerPromptCI,
   ReviewerPromptInput,
 } from "./prompts.ts";
 export {
@@ -40,6 +41,7 @@ export {
 } from "./prompts.ts";
 export type {
   AdapterOverride,
+  RegisterRunnersCIOptions,
   RegisterRunnersOptions,
 } from "./runners.ts";
 export {
@@ -47,12 +49,14 @@ export {
   registerRunners,
 } from "./runners.ts";
 export type {
+  CINodeOutput,
   ExecutorOutput,
   PlannerOutput,
   ReviewerModelOutput,
   ReviewerVerdict,
 } from "./schemas.ts";
 export {
+  CINodeOutputSchema,
   ExecutorOutputSchema,
   PlannerOutputSchema,
   ReviewerModelOutputSchema,

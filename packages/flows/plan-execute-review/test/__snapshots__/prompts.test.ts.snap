@@ -71,10 +71,20 @@ exports[`prompts > reviewer prompt embeds plan and execution, includes schema ma
 Decide whether the executor's work fulfills the plan and the original task.
 A \`revise\` verdict sends the executor back for another iteration; reserve it
 for concrete, fixable issues (incorrect logic, missing step, obvious defect).
+A \`requires_ci_rerun\` verdict is for when the CI failure looks like an
+infrastructure flake (network hiccup, transient container boot failure) and
+a clean CI rerun is warranted -- NOT for logic fixes. If the failure points
+at the executor's code, use \`revise\` instead.
 Do not invent scope beyond the plan.
+If the CI result section below reports \`status: red\`, you MUST NOT emit
+\`approve\`; valid verdicts are \`revise\` (fixable code) or \`requires_ci_rerun\`
+(suspected flake). An \`approve\` against red CI will be overridden.
+If the CI result reports \`status: green\`, proceed normally; green CI alone
+does not force approve -- still judge scope and plan adherence.
+If the CI section is absent, proceed as you would without a CI signal.
 End your reply with a fenced \`\`\`json\`\`\` block matching exactly this shape:
 {
-  "verdict": "approve" | "revise",
+  "verdict": "approve" | "revise" | "requires_ci_rerun",
   "feedback": string,
   "concerns": string[]
 }",
@@ -117,6 +127,152 @@ Executor's report:
   },
   "notes": "no scope expansion"
 }
+
+Render a verdict. Remember: fenced \`\`\`json\`\`\` block at the end.",
+}
+`;
+
+exports[`prompts > reviewer prompt includes CI excerpt verbatim on red 1`] = `
+{
+  "system": "You are the REVIEWER in a plan-execute-review coding flow.
+Decide whether the executor's work fulfills the plan and the original task.
+A \`revise\` verdict sends the executor back for another iteration; reserve it
+for concrete, fixable issues (incorrect logic, missing step, obvious defect).
+A \`requires_ci_rerun\` verdict is for when the CI failure looks like an
+infrastructure flake (network hiccup, transient container boot failure) and
+a clean CI rerun is warranted -- NOT for logic fixes. If the failure points
+at the executor's code, use \`revise\` instead.
+Do not invent scope beyond the plan.
+If the CI result section below reports \`status: red\`, you MUST NOT emit
+\`approve\`; valid verdicts are \`revise\` (fixable code) or \`requires_ci_rerun\`
+(suspected flake). An \`approve\` against red CI will be overridden.
+If the CI result reports \`status: green\`, proceed normally; green CI alone
+does not force approve -- still judge scope and plan adherence.
+If the CI section is absent, proceed as you would without a CI signal.
+End your reply with a fenced \`\`\`json\`\`\` block matching exactly this shape:
+{
+  "verdict": "approve" | "revise" | "requires_ci_rerun",
+  "feedback": string,
+  "concerns": string[]
+}",
+  "user": "Task:
+task-a
+
+Plan the executor followed:
+{
+  "goal": "add a readme heading",
+  "steps": [
+    {
+      "id": "s1",
+      "description": "open README.md",
+      "filesTouched": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "s2",
+      "description": "insert a heading at the top",
+      "filesTouched": [
+        "README.md"
+      ]
+    }
+  ],
+  "assumptions": [
+    "the file already exists"
+  ]
+}
+
+Executor's report:
+{
+  "summary": "added a heading to README.md",
+  "diffStats": {
+    "added": 1,
+    "removed": 0,
+    "files": [
+      "README.md"
+    ]
+  },
+  "notes": "no scope expansion"
+}
+
+CI result:
+status: red
+excerpt:
+agent-ci run run-42: RED
+  workflows: 1, failed jobs: 1
+  - test-suite failed
+
+Render a verdict. Remember: fenced \`\`\`json\`\`\` block at the end.",
+}
+`;
+
+exports[`prompts > reviewer prompt includes CI section when green CI is supplied 1`] = `
+{
+  "system": "You are the REVIEWER in a plan-execute-review coding flow.
+Decide whether the executor's work fulfills the plan and the original task.
+A \`revise\` verdict sends the executor back for another iteration; reserve it
+for concrete, fixable issues (incorrect logic, missing step, obvious defect).
+A \`requires_ci_rerun\` verdict is for when the CI failure looks like an
+infrastructure flake (network hiccup, transient container boot failure) and
+a clean CI rerun is warranted -- NOT for logic fixes. If the failure points
+at the executor's code, use \`revise\` instead.
+Do not invent scope beyond the plan.
+If the CI result section below reports \`status: red\`, you MUST NOT emit
+\`approve\`; valid verdicts are \`revise\` (fixable code) or \`requires_ci_rerun\`
+(suspected flake). An \`approve\` against red CI will be overridden.
+If the CI result reports \`status: green\`, proceed normally; green CI alone
+does not force approve -- still judge scope and plan adherence.
+If the CI section is absent, proceed as you would without a CI signal.
+End your reply with a fenced \`\`\`json\`\`\` block matching exactly this shape:
+{
+  "verdict": "approve" | "revise" | "requires_ci_rerun",
+  "feedback": string,
+  "concerns": string[]
+}",
+  "user": "Task:
+task-a
+
+Plan the executor followed:
+{
+  "goal": "add a readme heading",
+  "steps": [
+    {
+      "id": "s1",
+      "description": "open README.md",
+      "filesTouched": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "s2",
+      "description": "insert a heading at the top",
+      "filesTouched": [
+        "README.md"
+      ]
+    }
+  ],
+  "assumptions": [
+    "the file already exists"
+  ]
+}
+
+Executor's report:
+{
+  "summary": "added a heading to README.md",
+  "diffStats": {
+    "added": 1,
+    "removed": 0,
+    "files": [
+      "README.md"
+    ]
+  },
+  "notes": "no scope expansion"
+}
+
+CI result:
+status: green
+excerpt:
+(no excerpt available)
 
 Render a verdict. Remember: fenced \`\`\`json\`\`\` block at the end.",
 }

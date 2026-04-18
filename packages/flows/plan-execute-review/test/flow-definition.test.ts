@@ -3,12 +3,13 @@ import { describe, expect, test } from "vitest";
 import { flowDefinition } from "../src/flow.ts";
 
 describe("flowDefinition", () => {
-  test("has exactly the four expected nodes with the expected ids", () => {
+  test("has exactly the five expected nodes with the expected ids", () => {
     expect(flowDefinition.id).toBe("plan-execute-review");
-    expect(flowDefinition.version).toBe(1);
+    // FLOW_VERSION bumped to 2 in Phase 5.B when the `ci` node was inserted.
+    expect(flowDefinition.version).toBe(2);
     expect(flowDefinition.entry).toBe("plan");
     const ids = flowDefinition.nodes.map((n) => n.id).sort();
-    expect(ids).toEqual(["execute", "loop", "plan", "review"].sort());
+    expect(ids).toEqual(["ci", "execute", "loop", "plan", "review"].sort());
   });
 
   test("round-trips through JSON.stringify / JSON.parse losslessly", () => {
@@ -21,9 +22,11 @@ describe("flowDefinition", () => {
     const order = topologicalOrder(flowDefinition);
     // NodeId is a branded string; compare via the raw string value.
     const orderIds: string[] = order.map((n) => String(n.id));
-    // plan must come before execute; execute before review; review before loop.
+    // plan must come before execute; execute before ci; ci before review;
+    // review before loop.
     expect(orderIds.indexOf("plan")).toBeLessThan(orderIds.indexOf("execute"));
-    expect(orderIds.indexOf("execute")).toBeLessThan(orderIds.indexOf("review"));
+    expect(orderIds.indexOf("execute")).toBeLessThan(orderIds.indexOf("ci"));
+    expect(orderIds.indexOf("ci")).toBeLessThan(orderIds.indexOf("review"));
     expect(orderIds.indexOf("review")).toBeLessThan(orderIds.indexOf("loop"));
   });
 
@@ -46,20 +49,30 @@ describe("flowDefinition", () => {
     expect(exec.maxRetries).toBe(2);
   });
 
-  test("review node depends on execute, role reviewer", () => {
+  test("ci node depends on execute, role + runner 'ci', maxRetries 0", () => {
+    const ci = flowDefinition.nodes.find((n) => n.id === "ci");
+    if (ci?.kind !== "agent_step") throw new Error("ci should be AgentStep");
+    expect(ci.role).toBe("ci");
+    expect(ci.runner).toBe("ci");
+    expect(ci.dependsOn).toEqual(["execute"]);
+    expect(ci.maxRetries).toBe(0);
+  });
+
+  test("review node depends on ci, role reviewer", () => {
     const review = flowDefinition.nodes.find((n) => n.id === "review");
     if (review?.kind !== "agent_step") throw new Error("review should be AgentStep");
     expect(review.role).toBe("reviewer");
     expect(review.runner).toBe("reviewer");
-    expect(review.dependsOn).toEqual(["execute"]);
+    expect(review.dependsOn).toEqual(["ci"]);
     expect(review.maxRetries).toBe(1);
   });
 
-  test("loop node uses loop-predicate and maxIterations 5", () => {
+  test("loop node uses loop-predicate, maxIterations 5, body [execute, ci, review]", () => {
     const loop = flowDefinition.nodes.find((n) => n.id === "loop");
     if (loop?.kind !== "loop") throw new Error("loop should be Loop");
     expect(loop.until).toBe("loop-predicate");
     expect(loop.maxIterations).toBe(5);
     expect(loop.dependsOn).toEqual(["review"]);
+    expect(loop.body).toEqual(["execute", "ci", "review"]);
   });
 });

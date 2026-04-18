@@ -29,4 +29,9 @@ export const DEFAULT_REVIEWER_MODEL = "gpt-5.4" as const;
 export const DEFAULT_MAX_ITERATIONS = 5;
 
 export const FLOW_ID = "plan-execute-review" as const;
-export const FLOW_VERSION = 1;
+// v2: Phase 5.B inserted a `ci` node between execute and review, and the
+// reviewer now reads CI summary + excerpt via ctx.priorOutputs.ci. The DAG
+// shape affects content hashes + resumability; `flow_runs.dag_version` keys on
+// this, so the bump is load-bearing -- resumes across a version boundary MUST
+// invalidate cached outputs.
+export const FLOW_VERSION = 2;

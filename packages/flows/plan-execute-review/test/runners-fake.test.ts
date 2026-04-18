@@ -7,15 +7,17 @@
  * semantics.
  */
 
+import type { GateResult, RunGateOptions } from "@shamu/ci";
 import type { RunnerContext } from "@shamu/core-flow/runners";
 import { RunnerRegistry } from "@shamu/core-flow/runners";
 import type { NodeId, NodeOutput } from "@shamu/core-flow/types";
 import { newWorkflowRunId } from "@shamu/shared/ids";
 import { describe, expect, test } from "vitest";
 import { flowDefinition } from "../src/flow.ts";
-import type { AdapterOverride } from "../src/runners.ts";
+import type { AdapterOverride, CIRunOverride } from "../src/runners.ts";
 import { registerRunners } from "../src/runners.ts";
 import type {
+  CINodeOutput,
   ExecutorOutput,
   PlannerOutput,
   ReviewerModelOutput,
@@ -48,9 +50,9 @@ const REVISE: ReviewerModelOutput = {
   concerns: ["toc stale"],
 };
 
-/** Helper: build a runnerContext matching one of our four node ids. */
+/** Helper: build a runnerContext matching one of our five node ids. */
 function buildCtx(params: {
-  readonly nodeKey: "plan" | "execute" | "review" | "loop";
+  readonly nodeKey: "plan" | "execute" | "ci" | "review" | "loop";
   readonly initial?: Record<string, unknown>;
   readonly priorOutputs?: Record<string, NodeOutput>;
 }): RunnerContext {
@@ -76,11 +78,77 @@ function okOutput(value: unknown, overrides: Partial<NodeOutput> = {}): NodeOutp
   };
 }
 
+/**
+ * Minimal scripted gate-result factory. The reviewer's internal re-run loop
+ * and the ci runner both accept this through `__ciRunOverride`.
+ */
+function makeGateResult(params: {
+  readonly runId?: string;
+  readonly status: "green" | "red" | "unknown";
+  readonly excerpt?: string;
+}): GateResult {
+  const runId = params.runId ?? "test-ci-run";
+  const summary: GateResult["summary"] = {
+    runId,
+    status: params.status,
+    durationMs: 0,
+    workflows: [],
+    totalSteps: 0,
+    failedSteps: [],
+  };
+  const domainEvent: GateResult["domainEvent"] =
+    params.status === "red"
+      ? {
+          kind: "CIRed",
+          runId,
+          summary,
+          reviewerExcerpt: params.excerpt ?? "RED: tests failed",
+        }
+      : { kind: "PatchReady", runId, summary };
+  return {
+    exitCode: params.status === "red" ? 1 : 0,
+    stdout: "",
+    stderr: "",
+    runDir: `/tmp/fake-ci/${runId}`,
+    summary,
+    domainEvent,
+  };
+}
+
+/** Build a ci priorOutput stub matching what the `ci` runner would emit. */
+function ciPriorOutput(params: {
+  readonly status: "green" | "red" | "unknown";
+  readonly excerpt?: string | null;
+  readonly runId?: string;
+}): NodeOutput {
+  const runId = params.runId ?? "test-ci-run";
+  const value: CINodeOutput = {
+    kind: params.status === "red" ? "CIRed" : "PatchReady",
+    runId,
+    summary: {
+      runId,
+      status: params.status,
+      durationMs: 0,
+      workflows: [],
+      totalSteps: 0,
+      failedSteps: [],
+    },
+    reviewerExcerpt: params.excerpt ?? null,
+  };
+  return okOutput(value);
+}
+
 interface BuildRegistryInput {
   readonly planner?: FakeAdapterScript | (() => FakeAdapterScript);
   readonly executor?: FakeAdapterScript | ((idx: number) => FakeAdapterScript);
   readonly reviewer?: FakeAdapterScript | ((idx: number) => FakeAdapterScript);
   readonly maxIterations?: number;
+  /**
+   * Scripted ci gate. Default produces a green PatchReady so existing tests
+   * that don't care about CI keep their previous behavior (reviewer sees
+   * green CI, is not forced to revise, approves as before).
+   */
+  readonly ciRun?: CIRunOverride;
 }
 
 interface BuildRegistryResult {
@@ -88,6 +156,7 @@ interface BuildRegistryResult {
   readonly plannerAdapter: FakeAdapter;
   readonly executorAdapter: FakeAdapter;
   readonly reviewerAdapter: FakeAdapter;
+  readonly ciCalls: RunGateOptions[];
 }
 
 function buildRegistry(input: BuildRegistryInput): BuildRegistryResult {
@@ -116,12 +185,25 @@ function buildRegistry(input: BuildRegistryInput): BuildRegistryResult {
     executorAdapter: () => executorAdapter,
     reviewerAdapter: () => reviewerAdapter,
   };
+  const ciCalls: RunGateOptions[] = [];
+  const userCiRun = input.ciRun;
+  const wrappedCiRun: CIRunOverride =
+    userCiRun !== undefined
+      ? async (opts) => {
+          ciCalls.push(opts);
+          return userCiRun(opts);
+        }
+      : async (opts) => {
+          ciCalls.push(opts);
+          return makeGateResult({ status: "green" });
+        };
   registerRunners(registry, {
     workspaceCwd: "/tmp/shamu-fake",
     __adapterOverride: override,
+    __ciRunOverride: wrappedCiRun,
     ...(input.maxIterations !== undefined ? { maxIterations: input.maxIterations } : {}),
   });
-  return { registry, plannerAdapter, executorAdapter, reviewerAdapter };
+  return { registry, plannerAdapter, executorAdapter, reviewerAdapter, ciCalls };
 }
 
 function scriptFnFrom(
@@ -232,6 +314,80 @@ describe("executor runner", () => {
   });
 });
 
+describe("ci runner", () => {
+  test("projects a green gate result into a PatchReady CINodeOutput", async () => {
+    const { registry, ciCalls } = buildRegistry({
+      ciRun: async () => makeGateResult({ status: "green", runId: "run-a" }),
+    });
+    const runner = registry.get("ci");
+    const out = await runner?.(
+      buildCtx({
+        nodeKey: "ci",
+        priorOutputs: {
+          plan: okOutput(SAMPLE_PLAN),
+          execute: okOutput(SAMPLE_EXEC),
+        },
+      }),
+    );
+    expect(out?.ok).toBe(true);
+    const value = out?.value as CINodeOutput;
+    expect(value.kind).toBe("PatchReady");
+    expect(value.runId).toBe("run-a");
+    expect(value.summary.status).toBe("green");
+    expect(value.reviewerExcerpt).toBeNull();
+    expect(out?.costUsd).toBeNull();
+    expect(out?.costConfidence).toBe("unknown");
+    expect(out?.costSource).toBe("ci-gate");
+    expect(ciCalls).toHaveLength(1);
+    expect(ciCalls[0]?.cwd).toBe("/tmp/shamu-fake");
+  });
+
+  test("projects a red gate result into a CIRed CINodeOutput with an excerpt", async () => {
+    const { registry } = buildRegistry({
+      ciRun: async () =>
+        makeGateResult({ status: "red", runId: "run-b", excerpt: "test X failed: boom" }),
+    });
+    const runner = registry.get("ci");
+    const out = await runner?.(
+      buildCtx({
+        nodeKey: "ci",
+        priorOutputs: {
+          plan: okOutput(SAMPLE_PLAN),
+          execute: okOutput(SAMPLE_EXEC),
+        },
+      }),
+    );
+    expect(out?.ok).toBe(true);
+    const value = out?.value as CINodeOutput;
+    expect(value.kind).toBe("CIRed");
+    expect(value.summary.status).toBe("red");
+    expect(value.reviewerExcerpt).toBe("test X failed: boom");
+  });
+
+  test("propagates a GateBootError as a non-retriable failed NodeOutput", async () => {
+    const { registry } = buildRegistry({
+      ciRun: async () => {
+        const { GateBootError } = await import("@shamu/ci");
+        throw new GateBootError("no GITHUB_REPO resolvable");
+      },
+    });
+    const runner = registry.get("ci");
+    const out = await runner?.(
+      buildCtx({
+        nodeKey: "ci",
+        priorOutputs: {
+          plan: okOutput(SAMPLE_PLAN),
+          execute: okOutput(SAMPLE_EXEC),
+        },
+      }),
+    );
+    expect(out?.ok).toBe(false);
+    expect(out?.error?.message).toMatch(/no GITHUB_REPO/);
+    expect(out?.error?.retriable).toBe(false);
+    expect(out?.costSource).toBe("ci-gate");
+  });
+});
+
 describe("reviewer runner", () => {
   test("approve on first pass returns iterationsUsed=1 without re-invoking executor", async () => {
     const { registry, executorAdapter, reviewerAdapter } = buildRegistry({
@@ -324,6 +480,181 @@ describe("reviewer runner", () => {
     // Executor re-invoked once per revise-not-at-cap = maxIterations - 1.
     expect(executorAdapter.spawnCount).toBe(maxIterations - 1);
   });
+
+  test("red CI forces revise even when the reviewer emitted approve", async () => {
+    const { registry, reviewerAdapter } = buildRegistry({
+      reviewer: { finalAssistantText: fencedJson(APPROVE) },
+      maxIterations: 1,
+    });
+    const runner = registry.get("reviewer");
+    const out = await runner?.(
+      buildCtx({
+        nodeKey: "review",
+        initial: { task: "t", repoContext: "ctx" },
+        priorOutputs: {
+          plan: okOutput(SAMPLE_PLAN),
+          execute: okOutput(SAMPLE_EXEC),
+          ci: ciPriorOutput({
+            status: "red",
+            excerpt: "tap: tests failed\n  - math breaks\n  - assertion 1 != 2",
+          }),
+        },
+      }),
+    );
+    expect(out?.ok).toBe(true);
+    const verdict = out?.value as ReviewerVerdict;
+    // The model said approve; the runner auto-rewrote to revise because CI
+    // was red. The feedback starts with the [shamu] marker and includes the
+    // CI excerpt head.
+    expect(verdict.verdict).toBe("revise");
+    expect(verdict.feedback).toMatch(/^\[shamu\] reviewer emitted 'approve' against red CI/);
+    expect(verdict.feedback).toContain("tap: tests failed");
+    expect(verdict.concerns[0]).toMatch(/auto-rewrote verdict/);
+    expect(reviewerAdapter.spawnCount).toBe(1);
+  });
+
+  test("green CI lets the reviewer approve normally", async () => {
+    const { registry } = buildRegistry({
+      reviewer: { finalAssistantText: fencedJson(APPROVE) },
+    });
+    const runner = registry.get("reviewer");
+    const out = await runner?.(
+      buildCtx({
+        nodeKey: "review",
+        initial: { task: "t", repoContext: "ctx" },
+        priorOutputs: {
+          plan: okOutput(SAMPLE_PLAN),
+          execute: okOutput(SAMPLE_EXEC),
+          ci: ciPriorOutput({ status: "green" }),
+        },
+      }),
+    );
+    expect(out?.ok).toBe(true);
+    const verdict = out?.value as ReviewerVerdict;
+    expect(verdict.verdict).toBe("approve");
+    expect(verdict.iterationsUsed).toBe(1);
+  });
+
+  test("internal re-execute loop re-runs CI per iteration", async () => {
+    // revise -> re-run executor + CI, approve -> done. That's 2 reviewer
+    // spawns + 1 executor re-invocation + 2 ci calls (initial ci priorOutput
+    // + one re-run inside the reviewer).
+    const reviewerScripts: FakeAdapterScript[] = [
+      { finalAssistantText: fencedJson(REVISE) },
+      { finalAssistantText: fencedJson(APPROVE) },
+    ];
+    const ciRuns: Array<"green" | "red"> = [];
+    const { registry, executorAdapter, reviewerAdapter, ciCalls } = buildRegistry({
+      reviewer: (idx) => {
+        const script = reviewerScripts[idx];
+        if (!script) throw new Error(`unexpected reviewer spawn #${idx}`);
+        return script;
+      },
+      executor: { finalAssistantText: fencedJson(SAMPLE_EXEC) },
+      ciRun: async () => {
+        ciRuns.push("green");
+        return makeGateResult({ status: "green", runId: `run-${ciRuns.length}` });
+      },
+    });
+    const runner = registry.get("reviewer");
+    const out = await runner?.(
+      buildCtx({
+        nodeKey: "review",
+        initial: { task: "t", repoContext: "ctx" },
+        priorOutputs: {
+          plan: okOutput(SAMPLE_PLAN),
+          execute: okOutput(SAMPLE_EXEC),
+          ci: ciPriorOutput({ status: "green" }),
+        },
+      }),
+    );
+    expect(out?.ok).toBe(true);
+    const verdict = out?.value as ReviewerVerdict;
+    expect(verdict.verdict).toBe("approve");
+    expect(verdict.iterationsUsed).toBe(2);
+    expect(reviewerAdapter.spawnCount).toBe(2);
+    expect(executorAdapter.spawnCount).toBe(1);
+    // Exactly one CI re-run happened inside the reviewer's internal loop
+    // (after the revise-triggered executor re-run). The initial CI was
+    // already on the priorOutputs so no run at iteration 1.
+    expect(ciCalls).toHaveLength(1);
+  });
+
+  test("requires_ci_rerun skips the executor and re-runs CI only", async () => {
+    // Reviewer emits requires_ci_rerun on first pass; then green CI and
+    // approve on second pass. Executor must NOT be re-invoked.
+    const reviewerScripts: FakeAdapterScript[] = [
+      {
+        finalAssistantText: fencedJson({
+          verdict: "requires_ci_rerun",
+          feedback: "suspected flake",
+          concerns: ["docker boot hung"],
+        }),
+      },
+      { finalAssistantText: fencedJson(APPROVE) },
+    ];
+    let ciCallIndex = 0;
+    const { registry, executorAdapter, reviewerAdapter, ciCalls } = buildRegistry({
+      reviewer: (idx) => {
+        const script = reviewerScripts[idx];
+        if (!script) throw new Error(`unexpected reviewer spawn #${idx}`);
+        return script;
+      },
+      // First ci call on the priorOutputs stub is already red; second ci
+      // call (from the reviewer's rerun) is green. The reviewer sees the
+      // green result on the second pass and approves.
+      ciRun: async () => {
+        ciCallIndex += 1;
+        return makeGateResult({
+          status: ciCallIndex === 1 ? "green" : "green",
+          runId: `run-${ciCallIndex}`,
+        });
+      },
+    });
+    const runner = registry.get("reviewer");
+    const out = await runner?.(
+      buildCtx({
+        nodeKey: "review",
+        initial: { task: "t", repoContext: "ctx" },
+        priorOutputs: {
+          plan: okOutput(SAMPLE_PLAN),
+          execute: okOutput(SAMPLE_EXEC),
+          // Initial CI was red -> reviewer flags it as a flake.
+          ci: ciPriorOutput({ status: "red", excerpt: "docker hung" }),
+        },
+      }),
+    );
+    expect(out?.ok).toBe(true);
+    const verdict = out?.value as ReviewerVerdict;
+    expect(verdict.verdict).toBe("approve");
+    expect(verdict.iterationsUsed).toBe(2);
+    expect(reviewerAdapter.spawnCount).toBe(2);
+    // Executor MUST NOT be re-invoked on requires_ci_rerun.
+    expect(executorAdapter.spawnCount).toBe(0);
+    // Exactly one CI re-run happened inside the reviewer's internal loop.
+    expect(ciCalls).toHaveLength(1);
+  });
+
+  test("missing CI priorOutput is treated as absent, reviewer still runs", async () => {
+    const { registry } = buildRegistry({
+      reviewer: { finalAssistantText: fencedJson(APPROVE) },
+    });
+    const runner = registry.get("reviewer");
+    // No `ci` key in priorOutputs -- reviewer proceeds without CI info.
+    const out = await runner?.(
+      buildCtx({
+        nodeKey: "review",
+        initial: { task: "t", repoContext: "ctx" },
+        priorOutputs: {
+          plan: okOutput(SAMPLE_PLAN),
+          execute: okOutput(SAMPLE_EXEC),
+        },
+      }),
+    );
+    expect(out?.ok).toBe(true);
+    const verdict = out?.value as ReviewerVerdict;
+    expect(verdict.verdict).toBe("approve");
+  });
 });
 
 describe("loop-predicate runner", () => {
@@ -363,7 +694,11 @@ describe("loop-predicate runner", () => {
     expect(out?.value).toBe(true);
   });
 
-  test("returns false on revise below the cap", async () => {
+  test("returns true on revise below the cap (reviewer already re-rendered)", async () => {
+    // The reviewer runner internally drives the revise->retry loop; by the
+    // time the engine reaches the loop predicate, the reviewer's verdict is
+    // authoritative, so the predicate always terminates. Returning `false`
+    // here would attempt to re-enter the (uninvokable) Loop body and spin.
     const { registry } = buildRegistry({ maxIterations: 5 });
     const runner = registry.get("loop-predicate");
     const verdict: ReviewerVerdict = {
@@ -378,7 +713,43 @@ describe("loop-predicate runner", () => {
         priorOutputs: { review: okOutput(verdict) },
       }),
     );
-    expect(out?.value).toBe(false);
+    expect(out?.value).toBe(true);
+  });
+
+  test("returns true when requires_ci_rerun hits the cap", async () => {
+    const { registry } = buildRegistry({ maxIterations: 2 });
+    const runner = registry.get("loop-predicate");
+    const verdict: ReviewerVerdict = {
+      verdict: "requires_ci_rerun",
+      feedback: "suspected flake",
+      iterationsUsed: 2,
+      concerns: [],
+    };
+    const out = await runner?.(
+      buildCtx({
+        nodeKey: "loop",
+        priorOutputs: { review: okOutput(verdict) },
+      }),
+    );
+    expect(out?.value).toBe(true);
+  });
+
+  test("returns true on requires_ci_rerun below the cap (defensive)", async () => {
+    const { registry } = buildRegistry({ maxIterations: 5 });
+    const runner = registry.get("loop-predicate");
+    const verdict: ReviewerVerdict = {
+      verdict: "requires_ci_rerun",
+      feedback: "flake",
+      iterationsUsed: 1,
+      concerns: [],
+    };
+    const out = await runner?.(
+      buildCtx({
+        nodeKey: "loop",
+        priorOutputs: { review: okOutput(verdict) },
+      }),
+    );
+    expect(out?.value).toBe(true);
   });
 
   test("returns true when no review output is present (defensive)", async () => {

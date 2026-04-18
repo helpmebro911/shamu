@@ -1,20 +1,23 @@
 /**
  * Runner registrations for the plan -> execute -> review flow.
  *
- * Four runners land in the registry:
+ * Five runners land in the registry:
  *   - "planner"        -- Codex adapter (GPT-5.4) producing a plan
  *   - "executor"       -- Claude adapter (Opus 4.7) applying edits
- *   - "reviewer"       -- Codex adapter (GPT-5.4) rendering approve/revise.
- *                         ALSO drives the revise -> executor re-run loop
- *                         internally (see `flow.ts` WHY block).
+ *   - "ci"             -- @shamu/ci gate wrapping @redwoodjs/agent-ci; emits a
+ *                         CINodeOutput the reviewer consumes.
+ *   - "reviewer"       -- Codex adapter (GPT-5.4) rendering approve/revise/
+ *                         requires_ci_rerun. ALSO drives the revise->executor
+ *                         re-run loop internally, re-running CI each pass.
  *   - "loop-predicate" -- zero-cost terminator; returns `true` when the
  *                         reviewer verdict is approve or the iteration cap
  *                         is hit, `false` otherwise.
  *
- * Test-only override:
- *   `RegisterRunnersOptions.__adapterOverride` injects fake factories so
- *   unit tests never spawn a real vendor CLI. The `__`-prefixed key is
- *   documented as NOT part of the public contract; 4.C ignores it.
+ * Test-only overrides:
+ *   `RegisterRunnersOptions.__adapterOverride` injects fake adapters.
+ *   `RegisterRunnersOptions.__ciRunOverride` injects a scripted CI runner.
+ *   The `__`-prefixed keys are documented as NOT part of the public contract;
+ *   4.C's loader ignores them.
  *
  * Cost semantics (PLAN.md § 7 + T17):
  *   - Claude declares `costReporting: "native"`; the runner sums `cost`
@@ -28,6 +31,8 @@
  *     A future vendor SDK that surfaces per-run USD would flip Codex's
  *     capability manifest to `"native"` and this runner would start getting
  *     non-null samples without code changes here.
+ *   - CI is not a model call: `costUsd: null`, `confidence: "unknown"`,
+ *     `source: "ci-gate"`.
  */
 
 import { type ClaudeAdapterOptions, createClaudeAdapter } from "@shamu/adapter-claude";
@@ -39,6 +44,8 @@ import type {
   SpawnOpts,
   UserTurn,
 } from "@shamu/adapters-base";
+import type { GateResult, RunGateOptions } from "@shamu/ci";
+import { runGate as defaultRunGate, GateBootError } from "@shamu/ci";
 import type { RunnerContext, RunnerRegistry } from "@shamu/core-flow/runners";
 import type { NodeCostConfidence, NodeOutput } from "@shamu/core-flow/types";
 import { newRunId, type RunId } from "@shamu/shared/ids";
@@ -53,8 +60,11 @@ import {
   buildPlannerPrompt,
   buildReviewerPrompt,
   JSON_BLOCK_LANG,
+  type ReviewerPromptCI,
 } from "./prompts.ts";
 import {
+  type CINodeOutput,
+  CINodeOutputSchema,
   type ExecutorOutput,
   ExecutorOutputSchema,
   type PlannerOutput,
@@ -65,6 +75,23 @@ import {
 
 // --- public options -------------------------------------------------------
 
+/**
+ * Caller-supplied CI configuration forwarded to `@shamu/ci`'s `runGate`. All
+ * fields are optional; reasonable defaults are inherited from `runGate`
+ * itself. `cwd` is NOT accepted here -- the `ci` runner always spawns agent-ci
+ * with `opts.workspaceCwd` so the gate sees the executor's worktree.
+ */
+export interface RegisterRunnersCIOptions {
+  readonly githubRepo?: string;
+  readonly bin?: string;
+  readonly workflow?: string;
+  readonly all?: boolean;
+  readonly extraArgs?: readonly string[];
+  readonly workingDir?: string;
+  readonly env?: Readonly<Record<string, string | undefined>>;
+  readonly pauseOnFailure?: boolean;
+}
+
 export interface RegisterRunnersOptions {
   readonly anthropicCliPath?: string;
   readonly codexCliPath?: string;
@@ -74,6 +101,8 @@ export interface RegisterRunnersOptions {
   readonly plannerModel?: string;
   readonly executorModel?: string;
   readonly reviewerModel?: string;
+  /** CI gate configuration forwarded to `@shamu/ci`. */
+  readonly ci?: RegisterRunnersCIOptions;
   /**
    * Test-only adapter factory override. Present so unit tests can inject
    * scripted adapters without reaching into `@shamu/adapter-{claude,codex}`.
@@ -82,6 +111,13 @@ export interface RegisterRunnersOptions {
    * `index.ts`.
    */
   readonly __adapterOverride?: AdapterOverride;
+  /**
+   * Test-only CI runner override. Accepts the same `RunGateOptions` the
+   * real `runGate` would have received and returns a scripted `GateResult`.
+   * Unit tests use this to exercise red/green/boot-error paths without
+   * spawning agent-ci.
+   */
+  readonly __ciRunOverride?: CIRunOverride;
 }
 
 /**
@@ -93,6 +129,9 @@ export interface AdapterOverride {
   readonly executorAdapter: () => AgentAdapter;
   readonly reviewerAdapter: () => AgentAdapter;
 }
+
+/** Test-only CI override signature; mirrors `@shamu/ci`'s `runGate`. */
+export type CIRunOverride = (opts: RunGateOptions) => Promise<GateResult>;
 
 // --- registration --------------------------------------------------------
 
@@ -121,6 +160,8 @@ export function registerRunners(registry: RunnerRegistry, opts: RegisterRunnersO
   const reviewerAdapter = (): AgentAdapter =>
     opts.__adapterOverride?.reviewerAdapter() ?? buildCodexAdapter();
 
+  const ciRun: CIRunOverride = opts.__ciRunOverride ?? defaultRunGate;
+
   registry.register("planner", async (ctx) => {
     const input: PlannerRunnerInput = {
       ctx,
@@ -143,6 +184,15 @@ export function registerRunners(registry: RunnerRegistry, opts: RegisterRunnersO
     return runExecutor(input);
   });
 
+  registry.register("ci", async (ctx) => {
+    return runCi({
+      ciRun,
+      workspaceCwd: opts.workspaceCwd,
+      ...(opts.ci !== undefined ? { ciOptions: opts.ci } : {}),
+      signal: ctx.signal,
+    });
+  });
+
   registry.register("reviewer", async (ctx) => {
     const input: ReviewerRunnerInput = {
       ctx,
@@ -153,8 +203,10 @@ export function registerRunners(registry: RunnerRegistry, opts: RegisterRunnersO
       workspaceCwd: opts.workspaceCwd,
       maxIterations,
       iterationCounters,
+      ciRun,
       ...(opts.codexCliPath !== undefined ? { codexCliPath: opts.codexCliPath } : {}),
       ...(opts.anthropicCliPath !== undefined ? { anthropicCliPath: opts.anthropicCliPath } : {}),
+      ...(opts.ci !== undefined ? { ciOptions: opts.ci } : {}),
     };
     return runReviewer(input);
   });
@@ -281,6 +333,110 @@ async function invokeExecutor(input: ExecutorRunnerInput): Promise<ExecutorRunne
   return { output, executorOutput: parsed };
 }
 
+// --- ci runner ------------------------------------------------------------
+
+interface CiRunnerInput {
+  readonly ciRun: CIRunOverride;
+  readonly workspaceCwd: string;
+  readonly ciOptions?: RegisterRunnersCIOptions;
+  readonly signal: AbortSignal;
+}
+
+interface CiRunnerResult {
+  readonly output: NodeOutput;
+  readonly ciOutput: CINodeOutput | null;
+}
+
+async function runCi(input: CiRunnerInput): Promise<NodeOutput> {
+  const result = await invokeCiGate(input);
+  return result.output;
+}
+
+/**
+ * Shared call site for the `ci` runner AND the reviewer runner's internal
+ * re-run loop. Factored out so both surfaces send the same options and
+ * interpret the result identically.
+ */
+async function invokeCiGate(input: CiRunnerInput): Promise<CiRunnerResult> {
+  const gateOpts = buildGateOptions(input);
+  let result: GateResult;
+  try {
+    result = await input.ciRun(gateOpts);
+  } catch (cause) {
+    // GateBootError or anything else blowing up before we could spawn is a
+    // failed NodeOutput. We deliberately do NOT downgrade to a synthetic
+    // green summary -- the reviewer must see that CI never actually ran.
+    const message = cause instanceof Error ? cause.message : String(cause);
+    const retriable = !(cause instanceof GateBootError);
+    return {
+      output: {
+        ok: false,
+        value: null,
+        costUsd: null,
+        costConfidence: "unknown",
+        costSource: "ci-gate",
+        error: { message: `ci gate boot failed: ${message}`, retriable },
+      },
+      ciOutput: null,
+    };
+  }
+
+  if (result.domainEvent === null || result.summary === null) {
+    // Ran, but we couldn't derive a summary (run dir missing, parse failure).
+    // Treat this as a retriable failed node so the flow surfaces it rather
+    // than silently approving.
+    return {
+      output: {
+        ok: false,
+        value: null,
+        costUsd: null,
+        costConfidence: "unknown",
+        costSource: "ci-gate",
+        error: {
+          message: `ci gate produced no summary (exitCode=${result.exitCode}, runDir=${result.runDir ?? "null"})`,
+          retriable: true,
+        },
+      },
+      ciOutput: null,
+    };
+  }
+
+  const ev = result.domainEvent;
+  const ciOutput: CINodeOutput = {
+    kind: ev.kind,
+    runId: ev.runId,
+    summary: ev.summary,
+    reviewerExcerpt: ev.kind === "CIRed" ? ev.reviewerExcerpt : null,
+  };
+  return {
+    output: okOutput({
+      value: ciOutput,
+      costUsd: null,
+      costConfidence: "unknown",
+      costSource: "ci-gate",
+    }),
+    ciOutput,
+  };
+}
+
+function buildGateOptions(input: CiRunnerInput): RunGateOptions {
+  const ci = input.ciOptions;
+  const out: RunGateOptions = {
+    cwd: input.workspaceCwd,
+    signal: input.signal,
+  };
+  if (ci === undefined) return out;
+  if (ci.githubRepo !== undefined) out.githubRepo = ci.githubRepo;
+  if (ci.bin !== undefined) out.bin = ci.bin;
+  if (ci.workflow !== undefined) out.workflow = ci.workflow;
+  if (ci.all !== undefined) out.all = ci.all;
+  if (ci.extraArgs !== undefined) out.extraArgs = [...ci.extraArgs];
+  if (ci.workingDir !== undefined) out.workingDir = ci.workingDir;
+  if (ci.env !== undefined) out.env = { ...ci.env };
+  if (ci.pauseOnFailure !== undefined) out.pauseOnFailure = ci.pauseOnFailure;
+  return out;
+}
+
 // --- reviewer runner ------------------------------------------------------
 
 interface ReviewerRunnerInput {
@@ -294,6 +450,8 @@ interface ReviewerRunnerInput {
   readonly anthropicCliPath?: string;
   readonly maxIterations: number;
   readonly iterationCounters: Map<string, number>;
+  readonly ciRun: CIRunOverride;
+  readonly ciOptions?: RegisterRunnersCIOptions;
 }
 
 async function runReviewer(input: ReviewerRunnerInput): Promise<NodeOutput> {
@@ -310,6 +468,7 @@ async function runReviewer(input: ReviewerRunnerInput): Promise<NodeOutput> {
   const task = extractInitialStrings(ctx, ["task"]).task;
   const plan = extractPriorPlannerOutput(ctx);
   let execution = extractPriorExecutorOutput(ctx);
+  let ciOutput = extractPriorCiOutput(ctx);
 
   let iteration = 1;
   let verdict: ReviewerVerdict | null = null;
@@ -331,6 +490,7 @@ async function runReviewer(input: ReviewerRunnerInput): Promise<NodeOutput> {
       plan,
       execution,
       iteration,
+      ci: ciOutput,
       ...(input.codexCliPath !== undefined ? { codexCliPath: input.codexCliPath } : {}),
     };
     verdict = await renderReviewerVerdict(renderInput);
@@ -338,21 +498,34 @@ async function runReviewer(input: ReviewerRunnerInput): Promise<NodeOutput> {
     if (verdict.verdict === "approve") break;
     if (iteration >= input.maxIterations) break;
 
-    // Revise -> run the executor again with the reviewer's feedback.
+    // Below-cap branches: either a logic fix (revise -> re-run executor +
+    // CI) or a suspected flake (requires_ci_rerun -> re-run CI only). In
+    // both cases we do NOT bump the counter for the CI re-run itself; CI
+    // is not an iteration.
+    if (verdict.verdict === "revise") {
+      iteration += 1;
+      const reinvokeInput: ExecutorRunnerInput = {
+        ctx,
+        adapterFactory: input.executorAdapterFactory,
+        model: input.executorModel,
+        workspaceCwd: input.workspaceCwd,
+        reviewerFeedback: verdict.feedback,
+        priorExecutorNotes: execution.notes,
+        planOverride: plan,
+        taskOverride: task,
+        ...(input.anthropicCliPath !== undefined
+          ? { anthropicCliPath: input.anthropicCliPath }
+          : {}),
+      };
+      const reinvoked = await invokeExecutor(reinvokeInput);
+      execution = reinvoked.executorOutput;
+      ciOutput = await rerunCiForIteration(input, ctx.signal);
+      continue;
+    }
+
+    // requires_ci_rerun: skip the executor, re-run CI only.
     iteration += 1;
-    const reinvokeInput: ExecutorRunnerInput = {
-      ctx,
-      adapterFactory: input.executorAdapterFactory,
-      model: input.executorModel,
-      workspaceCwd: input.workspaceCwd,
-      reviewerFeedback: verdict.feedback,
-      priorExecutorNotes: execution.notes,
-      planOverride: plan,
-      taskOverride: task,
-      ...(input.anthropicCliPath !== undefined ? { anthropicCliPath: input.anthropicCliPath } : {}),
-    };
-    const reinvoked = await invokeExecutor(reinvokeInput);
-    execution = reinvoked.executorOutput;
+    ciOutput = await rerunCiForIteration(input, ctx.signal);
   }
 
   if (verdict === null) {
@@ -372,6 +545,25 @@ async function runReviewer(input: ReviewerRunnerInput): Promise<NodeOutput> {
   });
 }
 
+/**
+ * Re-invoke the CI gate using the same shared helper the `ci` runner uses.
+ * If CI fails to produce an output (boot failure, parse failure), we keep
+ * `null` so the next reviewer render sees the absence explicitly rather than
+ * a stale result.
+ */
+async function rerunCiForIteration(
+  input: ReviewerRunnerInput,
+  signal: AbortSignal,
+): Promise<CINodeOutput | null> {
+  const result = await invokeCiGate({
+    ciRun: input.ciRun,
+    workspaceCwd: input.workspaceCwd,
+    signal,
+    ...(input.ciOptions !== undefined ? { ciOptions: input.ciOptions } : {}),
+  });
+  return result.ciOutput;
+}
+
 interface RenderVerdictInput {
   readonly reviewerAdapterFactory: () => AgentAdapter;
   readonly reviewerModel: string;
@@ -382,13 +574,22 @@ interface RenderVerdictInput {
   readonly plan: PlannerOutput;
   readonly execution: ExecutorOutput;
   readonly iteration: number;
+  readonly ci: CINodeOutput | null;
 }
 
 async function renderReviewerVerdict(input: RenderVerdictInput): Promise<ReviewerVerdict> {
+  const ciPrompt: ReviewerPromptCI | undefined =
+    input.ci !== null
+      ? {
+          status: input.ci.summary.status,
+          excerpt: input.ci.reviewerExcerpt,
+        }
+      : undefined;
   const prompt = buildReviewerPrompt({
     task: input.task,
     plan: input.plan,
     execution: input.execution,
+    ...(ciPrompt !== undefined ? { ci: ciPrompt } : {}),
   });
   const adapter = input.reviewerAdapterFactory();
   const spawnOpts = makeSpawnOpts({
@@ -404,6 +605,25 @@ async function renderReviewerVerdict(input: RenderVerdictInput): Promise<Reviewe
     signal: input.signal,
   });
   const parsed = parseLastJsonBlock(collected.finalText, ReviewerModelOutputSchema);
+
+  // Defense-in-depth: the system prompt forbids approve-on-red, but a model
+  // may ignore it. Override to revise and prepend a synthetic concern so the
+  // downstream sink sees the auto-rewrite. The original feedback is
+  // preserved; we wrap it with a marker.
+  if (parsed.verdict === "approve" && input.ci?.summary.status === "red") {
+    const excerptHead = (input.ci.reviewerExcerpt ?? "").split("\n").slice(0, 3).join("\n");
+    const syntheticFeedback = `[shamu] reviewer emitted 'approve' against red CI; forced to revise. CI summary follows: ${excerptHead}\n\n${parsed.feedback}`;
+    return {
+      verdict: "revise",
+      feedback: syntheticFeedback,
+      concerns: [
+        "[shamu] auto-rewrote verdict: approve against red CI is not permitted",
+        ...parsed.concerns,
+      ],
+      iterationsUsed: input.iteration,
+    };
+  }
+
   return {
     verdict: parsed.verdict,
     feedback: parsed.feedback,
@@ -437,8 +657,13 @@ async function runLoopPredicate(input: LoopPredicateInput): Promise<NodeOutput> 
   const approved = value?.verdict === "approve";
   const iterationsUsed = typeof value?.iterationsUsed === "number" ? value.iterationsUsed : 0;
   const hitCap = iterationsUsed >= input.maxIterations;
+  // Both revise and requires_ci_rerun are below-cap cases the reviewer
+  // already handled internally; at the predicate we always terminate (true)
+  // because the reviewer's final verdict is authoritative -- there is no
+  // engine-level re-execution to gate.
   return okOutput({
-    value: approved || hitCap,
+    value:
+      approved || hitCap || value?.verdict === "revise" || value?.verdict === "requires_ci_rerun",
     costUsd: null,
     costConfidence: "unknown",
     costSource: "flow-internal",
@@ -636,6 +861,24 @@ function extractPriorExecutorOutput(ctx: RunnerContext): ExecutorOutput {
     );
   }
   return parsed.data;
+}
+
+/**
+ * Extract the prior `ci` node's output. Unlike the planner/executor
+ * extractors, a missing/invalid CI output is not fatal: the reviewer proceeds
+ * without CI context (preserves defensive behavior for smoke tests + flows
+ * that wire the reviewer without CI).
+ */
+function extractPriorCiOutput(ctx: RunnerContext): CINodeOutput | null {
+  const prior = ctx.priorOutputs["ci" as keyof typeof ctx.priorOutputs];
+  if (!prior || prior.ok === false) return null;
+  const parsed = CINodeOutputSchema.safeParse(prior.value);
+  if (!parsed.success) return null;
+  // The schema validates the fields the reviewer depends on + uses
+  // passthrough for the rest of `summary`. The runtime shape is the same
+  // CIRunSummary the `ci` runner produced -- re-using the original reference
+  // preserves type fidelity for downstream consumers.
+  return prior.value as CINodeOutput;
 }
 
 /**

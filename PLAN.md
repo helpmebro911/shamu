@@ -692,11 +692,11 @@ The live end-to-end (`SHAMU_FLOW_LIVE=1`) smoke against real Claude + Codex CLIs
 - [ ] Artifact capture (logs, reports) attached to run row in SQLite — deferred (needs `@shamu/persistence` schema surface; carried as a Phase 5.C / followup)
 
 **Track 5.B — Reviewer integration (Parallel with 5.A)**
-- [ ] Reviewer excerpt is a committed contract in `packages/ci`: deterministic, token-bounded (2000 default), greedy-then-shrink, TAP/ESLint-aware with tail fallback — lifted from 0.D spike
-- [ ] Reviewer agent input schema includes CI summary + excerpt; no raw logs
-- [ ] Reviewer verdict can require "re-run CI after changes" without declaring approval
-- [ ] Flow engine: reviewer approval blocked on red CI
-- [ ] Soft RFC filed upstream for `@redwoodjs/agent-ci --report=json` flag (non-blocking)
+- [x] Reviewer excerpt is a committed contract in `packages/ci`: deterministic, token-bounded (2000 default), greedy-then-shrink, TAP/ESLint-aware with tail fallback — lifted from 0.D spike
+- [x] Reviewer agent input schema includes CI summary + excerpt; no raw logs
+- [x] Reviewer verdict can require "re-run CI after changes" without declaring approval
+- [x] Flow engine: reviewer approval blocked on red CI
+- [x] Soft RFC filed upstream for `@redwoodjs/agent-ci --report=json` flag (non-blocking) — draft at `docs/phase-5/rfc-report-json.md`; user owns upstream filing
 
 **Track 5.C — Quality bars (Serial after 5.A + 5.B)**
 - [ ] Per-role CI-failure counter; watchdog tripwire on three consecutive reds

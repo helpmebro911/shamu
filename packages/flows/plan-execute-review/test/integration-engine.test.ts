@@ -73,6 +73,34 @@ describe("flow engine integration", () => {
     registerRunners(registry, {
       workspaceCwd: "/tmp/shamu-integration",
       __adapterOverride: override,
+      // Green CI keeps the reviewer in its normal approve path so the
+      // end-to-end shape matches the pre-5.B behavior.
+      __ciRunOverride: async () => ({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+        runDir: "/tmp/fake-ci/run-1",
+        summary: {
+          runId: "run-1",
+          status: "green",
+          durationMs: 0,
+          workflows: [],
+          totalSteps: 0,
+          failedSteps: [],
+        },
+        domainEvent: {
+          kind: "PatchReady",
+          runId: "run-1",
+          summary: {
+            runId: "run-1",
+            status: "green",
+            durationMs: 0,
+            workflows: [],
+            totalSteps: 0,
+            failedSteps: [],
+          },
+        },
+      }),
     });
 
     const bus = new EventBus<FlowEvent>();
@@ -109,8 +137,8 @@ describe("flow engine integration", () => {
     expect(verdict.verdict).toBe("approve");
     expect(verdict.iterationsUsed).toBe(1);
 
-    // Four node completions (plan / execute / review / loop), at least.
+    // Five node completions (plan / execute / ci / review / loop), at least.
     const completedNodes = events.filter((e) => e.kind === "node_completed");
-    expect(completedNodes.length).toBeGreaterThanOrEqual(4);
+    expect(completedNodes.length).toBeGreaterThanOrEqual(5);
   });
 });

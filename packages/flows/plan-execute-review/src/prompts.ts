@@ -115,10 +115,21 @@ export function buildExecutorPrompt(input: ExecutorPromptInput): ExecutorPrompt 
   return { system, user };
 }
 
+export interface ReviewerPromptCI {
+  readonly status: "green" | "red" | "unknown";
+  readonly excerpt: string | null;
+}
+
 export interface ReviewerPromptInput {
   readonly task: string;
   readonly plan: PlannerOutput;
   readonly execution: ExecutorOutput;
+  /**
+   * CI signal for this iteration. The full `CIRunSummary` is NOT passed in --
+   * the reviewer only needs status + a token-bounded excerpt. Omit when the
+   * flow was invoked without CI wiring (smoke tests, legacy callers).
+   */
+  readonly ci?: ReviewerPromptCI;
 }
 
 export interface ReviewerPrompt {
@@ -132,10 +143,20 @@ export function buildReviewerPrompt(input: ReviewerPromptInput): ReviewerPrompt 
     "Decide whether the executor's work fulfills the plan and the original task.",
     "A `revise` verdict sends the executor back for another iteration; reserve it",
     "for concrete, fixable issues (incorrect logic, missing step, obvious defect).",
+    "A `requires_ci_rerun` verdict is for when the CI failure looks like an",
+    "infrastructure flake (network hiccup, transient container boot failure) and",
+    "a clean CI rerun is warranted -- NOT for logic fixes. If the failure points",
+    "at the executor's code, use `revise` instead.",
     "Do not invent scope beyond the plan.",
+    "If the CI result section below reports `status: red`, you MUST NOT emit",
+    "`approve`; valid verdicts are `revise` (fixable code) or `requires_ci_rerun`",
+    "(suspected flake). An `approve` against red CI will be overridden.",
+    "If the CI result reports `status: green`, proceed normally; green CI alone",
+    "does not force approve -- still judge scope and plan adherence.",
+    "If the CI section is absent, proceed as you would without a CI signal.",
     "End your reply with a fenced ```json``` block matching exactly this shape:",
     "{",
-    '  "verdict": "approve" | "revise",',
+    '  "verdict": "approve" | "revise" | "requires_ci_rerun",',
     '  "feedback": string,',
     '  "concerns": string[]',
     "}",
@@ -143,6 +164,16 @@ export function buildReviewerPrompt(input: ReviewerPromptInput): ReviewerPrompt 
 
   const planJson = JSON.stringify(input.plan, null, 2);
   const execJson = JSON.stringify(input.execution, null, 2);
+  const ciSection =
+    input.ci !== undefined
+      ? [
+          "",
+          "CI result:",
+          `status: ${input.ci.status}`,
+          "excerpt:",
+          input.ci.excerpt ?? "(no excerpt available)",
+        ]
+      : [];
 
   const user = [
     "Task:",
@@ -153,6 +184,7 @@ export function buildReviewerPrompt(input: ReviewerPromptInput): ReviewerPrompt 
     "",
     "Executor's report:",
     execJson,
+    ...ciSection,
     "",
     "Render a verdict. Remember: fenced ```json``` block at the end.",
   ].join("\n");

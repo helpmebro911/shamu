@@ -20,6 +20,7 @@
     "@shamu/adapter-claude": "workspace:*",
     "@shamu/adapter-codex": "workspace:*",
     "@shamu/adapters-base": "workspace:*",
+    "@shamu/ci": "workspace:*",
     "@shamu/core-flow": "workspace:*",
     "@shamu/shared": "workspace:*",
     "zod": "4.1.13"
