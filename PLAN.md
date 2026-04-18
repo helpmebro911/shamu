@@ -447,7 +447,7 @@ The unit of work an executor produces. Sits between the mailbox/lease layer and 
 5. **Review.** Reviewer agent receives diff + CI summary + lease metadata. Verdict is `approve` / `revise` / `block`.
 6. **Integrate.** On approve + green CI, patch merges into `shamu/integration/<swarm-id>` (non-ff merge for ancestry). **Three complementary checks must all pass**, per Phase 0.C findings:
    - `git merge --no-commit` exit code — catches textual line conflicts.
-   - **Diff-overlap check** (`diffOverlapCheck(repo, integrationBranch, windowStart, mergedRuns, policy)`) — catches shared-file risk git itself merged cleanly. Uses `git diff --name-only -M` against each run's merge-base; `alwaysFlagGlobs` default `**/*.test.*`, `**/tsconfig*.json`, `package.json`, `**/schema.sql`, `agent-ci.yml`, `.github/workflows/*.yml`; `ignoredGlobs` default `**/*.md`, `node_modules/**`, `vendor/**`, `.shamu/**`; non-empty flagged set fans back to a reconcile node.
+   - **Diff-overlap check** (`diffOverlapCheck(repo, integrationBranch, windowStart, mergedRuns, policy)`, implemented in `@shamu/core-composition/diff-overlap`) — catches shared-file risk git itself merged cleanly. For each run `{runId, branch, mergeBase, mergedAt}` in `mergedRuns` whose `mergedAt >= windowStart`, runs `git diff --name-only -M <mergeBase>..<branch>` to isolate that run's own contribution, then cross-intersects: files touched by ≥ 2 runs (excluding `ignoredGlobs`) become `sharedFiles`, and files matching `alwaysFlagGlobs` touched by ≥ 1 run become `alwaysFlagged`. `integrationBranch` is asserted to exist and reserved for future `windowStart`-anchoring use. `alwaysFlagGlobs` default `**/*.test.*`, `**/tsconfig*.json`, `package.json`, `**/schema.sql`, `agent-ci.yml`, `.github/workflows/*.yml`; `ignoredGlobs` default `**/*.md`, `node_modules/**`, `vendor/**`, `.shamu/**`; non-empty flagged set fans back to a reconcile node.
    - **Rerun `agent-ci`** on the integration branch after the merge — catches cross-file semantic breaks (e.g., rename in one patch, caller in another).
 7. **Auto-revert is bisect-aware, not blind.** If integration CI turns red after a merge, revert the last merge (`git revert -m 1 <merge-sha>`), rerun CI. If still red, the break was latent; bisect backwards up to N attempts before quarantining the whole window. A blind single-revert that assumes the last merge caused the break would hide pre-existing failures.
 8. **Human handoff.** Integration branch → human PR against the target branch. Human merges (or closes); Linear attachment updates.
@@ -642,7 +642,7 @@ Three tracks fully parallel — none depends on the others' internals, only on P
 
 **Exit (primitives):** the four packages are published, each unit-tested; supervisor restarts a simulated worker under policy; watchdog fires on a manufactured stall and shows `confidence=unknown` for cold-starts; stale-lease last-touch check is implemented and green; `@shamu/worktree` GC classifies a 10-worktree fixture correctly.
 
-**Deferred to Phase 4 (composition, not a Phase 3 primitive):** two real Claude workers in parallel worktrees coordinate via mailbox end-to-end; the remaining five Phase 0.C manufactured scenarios (clean concurrent, overlapping lines, non-overlapping same-file, cross-file semantic, 10-worktree cleanup cost) reproduced as contract tests against the live flow; diff-overlap check wired into the integrate step of the patch lifecycle. These all require the flow engine to compose primitives; Phase 3 deliberately stops at the primitive layer.
+**Deferred to Phase 4 (composition, not a Phase 3 primitive):** two real Claude workers in parallel worktrees coordinate via mailbox end-to-end; the remaining five Phase 0.C manufactured scenarios (clean concurrent, overlapping lines, non-overlapping same-file, cross-file semantic, 10-worktree cleanup cost) reproduced as contract tests against the live flow; diff-overlap check wired into the integrate step of the patch lifecycle. These all require the flow engine to compose primitives; Phase 3 deliberately stops at the primitive layer. **Landed in Phase 4 Track 4.D (`@shamu/core-composition`).**
 
 ---
 
@@ -665,7 +665,16 @@ Mostly serial — the flow engine composes earlier primitives.
 - [x] `shamu flow status <flow-run>` — per-node breakdown
 - [x] Structured JSON logs per flow-run for later replay
 
+**Track 4.D — Composition exits (Serial after 4.A–4.C; closes Phase 3 deferrals)**
+- [x] `EscalationEmitter` shim: `@shamu/mailbox` + `@shamu/watchdog` alerts → `@shamu/core-supervisor` bus (`@shamu/core-composition/escalation-emitter`)
+- [x] `persistenceReadRun` driver: `@shamu/worktree` GC reads real run rows via `@shamu/persistence/queries/runs` (`@shamu/core-composition/persistence-read-run`)
+- [x] `diffOverlapCheck` helper implementing PLAN § "Patch lifecycle" line 450 (`@shamu/core-composition/diff-overlap`); integrate-step wiring lands with the Phase 5 CI gate
+- [x] Two-workers-via-mailbox E2E (two `@shamu/adapter-echo` workers coordinate in parallel worktrees)
+- [x] Phase 0.C scenarios 1/2/3/4/6 ported as contract tests (scenario 5 stale-lease landed in Phase 3.C)
+
 **Exit:** flow completes end-to-end on a sample repo; reviewer reject causes a clean executor re-run with prior diff + reviewer notes in context; **Phase 3-deferred composition exits**: two real workers in parallel worktrees coordinate via mailbox, remaining Phase 0.C scenarios reproduced as contract tests against the live flow, diff-overlap check wired into the integrate step of the patch lifecycle.
+
+The live end-to-end (`SHAMU_FLOW_LIVE=1`) smoke against real Claude + Codex CLIs is gated in `packages/flows/plan-execute-review/test/live/smoke.live.test.ts` and is the one manual-test step owed before the phase is considered fully validated.
 
 ---
 
