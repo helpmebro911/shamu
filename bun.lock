@@ -70,6 +70,21 @@
         "@shamu/shared": "workspace:*",
       },
     },
+    "packages/core/supervisor": {
+      "name": "@shamu/core-supervisor",
+      "version": "0.0.0",
+      "dependencies": {
+        "@shamu/shared": "workspace:*",
+      },
+    },
+    "packages/mailbox": {
+      "name": "@shamu/mailbox",
+      "version": "0.0.0",
+      "dependencies": {
+        "@shamu/persistence": "workspace:*",
+        "@shamu/shared": "workspace:*",
+      },
+    },
     "packages/persistence": {
       "name": "@shamu/persistence",
       "version": "0.0.0",
@@ -82,6 +97,13 @@
       "version": "0.0.0",
       "dependencies": {
         "zod": "4.1.13",
+      },
+    },
+    "packages/worktree": {
+      "name": "@shamu/worktree",
+      "version": "0.0.0",
+      "dependencies": {
+        "@shamu/shared": "workspace:*",
       },
     },
   },
@@ -252,9 +274,15 @@
 
     "@shamu/cli": ["@shamu/cli@workspace:apps/cli"],
 
+    "@shamu/core-supervisor": ["@shamu/core-supervisor@workspace:packages/core/supervisor"],
+
+    "@shamu/mailbox": ["@shamu/mailbox@workspace:packages/mailbox"],
+
     "@shamu/persistence": ["@shamu/persistence@workspace:packages/persistence"],
 
     "@shamu/shared": ["@shamu/shared@workspace:packages/shared"],
+
+    "@shamu/worktree": ["@shamu/worktree@workspace:packages/worktree"],
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 

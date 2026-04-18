@@ -609,12 +609,12 @@ Time-boxed validation of the assumptions that cost the most if they're wrong. Ev
 
 Three tracks fully parallel — none depends on the others' internals, only on Phase 1/2 primitives.
 
-**Track 3.A — Supervisor (Parallel)**
-- [ ] `packages/core/supervisor`: OTP-shaped `Supervisor` type, restart strategies (`one_for_one`, `rest_for_one`)
-- [ ] Restart-intensity bookkeeping (N restarts per T seconds → escalate)
-- [ ] Per-role policy config (planner/executor/reviewer defaults)
-- [ ] Escalation publishes `EscalationRaised` domain event; in-memory subscriber surfaces to CLI/status. No Linear coupling — that sink lands in Phase 6
-- [ ] Unit tests: simulated worker crashes exercising every restart path
+**Track 3.A — Supervisor (Parallel)** ✅
+- [x] `packages/core/supervisor`: OTP-shaped `Supervisor` type, restart strategies (`one_for_one`, `rest_for_one`)
+- [x] Restart-intensity bookkeeping (N restarts per T seconds → escalate)
+- [x] Per-role policy config (planner/executor/reviewer defaults)
+- [x] Escalation publishes `EscalationRaised` domain event; in-memory subscriber surfaces to CLI/status. No Linear coupling — that sink lands in Phase 6
+- [x] Unit tests: simulated worker crashes exercising every restart path
 
 **Track 3.B — Worktrees (Parallel)**
 - [ ] `packages/worktree`: create/destroy `.git/worktrees/shamu-<run-id>`

@@ -1,0 +1,26 @@
+{
+  "name": "@shamu/core-supervisor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "OTP-shaped supervision tree for Shamu workers: swarm → role → workers, with restart strategies, bounded intensity, and local EscalationRaised domain events.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./bus": "./src/bus.ts",
+    "./events": "./src/events.ts",
+    "./intensity": "./src/intensity.ts",
+    "./policy": "./src/policy.ts",
+    "./supervisor": "./src/supervisor.ts",
+    "./swarm": "./src/swarm.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@shamu/shared": "workspace:*"
+  }
+}

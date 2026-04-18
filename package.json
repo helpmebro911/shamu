@@ -9,7 +9,8 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "packages/adapters/*"
+    "packages/adapters/*",
+    "packages/core/*"
   ],
   "scripts": {
     "lint": "biome check .",
