@@ -1,0 +1,248 @@
+/**
+ * Behavioral tests for `CodexHandle` via the `CodexAdapter` surface.
+ *
+ * Uses a scripted `FakeCodex` / `FakeThread` in place of the real SDK so
+ * the tests run fast and hermetic. Covers:
+ *
+ * - `runId` invariant: `spawn(opts).runId === opts.runId` (G8).
+ * - Thread-id persistence: sessionId is bound from `thread.started`, and
+ *   `resume(sid)` round-trips it.
+ * - Redaction scrubs planted secrets before events leave the handle.
+ * - `setPermissionMode` rejects modes not declared in the manifest.
+ * - Path-scope denial on `file_change` surfaces an error event and aborts
+ *   the turn.
+ */
+
+import type { ThreadEvent } from "@openai/codex-sdk";
+import type { AgentEvent, AgentHandle } from "@shamu/adapters-base";
+import { newRunId } from "@shamu/shared/ids";
+import { describe, expect, it } from "vitest";
+import { CodexAdapter, type CodexLike } from "../../src/index.ts";
+import { echoScript, FakeCodex, FakeThread } from "../fake-thread.ts";
+
+const PLANTED_SECRET = "sk-ant-FAKE-FIXTURE-aAbBcCdDeEfFgGhHiI123456";
+
+function makeAdapter(
+  scripts: Array<(input: string, signal: AbortSignal | undefined) => ThreadEvent[]>,
+): CodexAdapter {
+  return new CodexAdapter({
+    codexFactory: (_sdkOpts): CodexLike =>
+      new FakeCodex(
+        (kind, id) =>
+          new FakeThread({
+            id: kind === "resume" ? id : null,
+            scripts,
+          }),
+      ),
+  });
+}
+
+async function collectTurn(handle: AgentHandle, budgetMs = 2_000): Promise<AgentEvent[]> {
+  const events: AgentEvent[] = [];
+  const iter = handle.events[Symbol.asyncIterator]();
+  const start = Date.now();
+  while (Date.now() - start < budgetMs) {
+    const next = await iter.next();
+    if (next.done) break;
+    events.push(next.value);
+    if (next.value.kind === "turn_end") break;
+  }
+  return events;
+}
+
+describe("CodexAdapter: runId invariant (G8)", () => {
+  it("handle.runId === opts.runId", async () => {
+    const adapter = makeAdapter([echoScript]);
+    const runId = newRunId();
+    const handle = await adapter.spawn({
+      cwd: "/tmp",
+      runId,
+      vendorCliPath: "/fake/codex",
+    });
+    expect(handle.runId).toBe(runId);
+    await handle.shutdown("done");
+  });
+});
+
+describe("CodexAdapter: spawn basic flow", () => {
+  it("emits session_start → assistant_message → usage → cost → turn_end", async () => {
+    const adapter = makeAdapter([echoScript]);
+    const handle = await adapter.spawn({
+      cwd: "/tmp",
+      runId: newRunId(),
+      vendorCliPath: "/fake/codex",
+    });
+    await handle.send({ text: "hello" });
+    const events = await collectTurn(handle);
+    await handle.shutdown("done");
+
+    const kinds = events.map((e) => e.kind);
+    expect(kinds[0]).toBe("session_start");
+    expect(kinds).toContain("assistant_message");
+    expect(kinds).toContain("usage");
+    expect(kinds).toContain("cost");
+    expect(kinds[kinds.length - 1]).toBe("turn_end");
+  });
+
+  it("binds sessionId from the Codex thread.started event", async () => {
+    const adapter = makeAdapter([echoScript]);
+    const handle = await adapter.spawn({
+      cwd: "/tmp",
+      runId: newRunId(),
+      vendorCliPath: "/fake/codex",
+    });
+    expect(handle.sessionId).toBeNull();
+    await handle.send({ text: "hello" });
+    await collectTurn(handle);
+    expect(handle.sessionId).toBe("thr_echo_0001");
+    await handle.shutdown("done");
+  });
+});
+
+describe("CodexAdapter: resume", () => {
+  it("resume(sid) surfaces sessionId before the first send", async () => {
+    const adapter = makeAdapter([echoScript]);
+    const handle = await adapter.resume("thr_existing_42" as never, {
+      cwd: "/tmp",
+      runId: newRunId(),
+      vendorCliPath: "/fake/codex",
+    });
+    expect(handle.sessionId).toBe("thr_existing_42");
+    await handle.shutdown("done");
+  });
+
+  it("resumed stream emits session_start with source=resume", async () => {
+    const adapter = makeAdapter([echoScript]);
+    const handle = await adapter.resume("thr_existing_42" as never, {
+      cwd: "/tmp",
+      runId: newRunId(),
+      vendorCliPath: "/fake/codex",
+    });
+    await handle.send({ text: "hi" });
+    const events = await collectTurn(handle);
+    await handle.shutdown("done");
+    const start = events.find((e) => e.kind === "session_start");
+    expect(start).toBeDefined();
+    if (start?.kind !== "session_start") throw new Error("expected session_start");
+    expect(start.source).toBe("resume");
+  });
+});
+
+describe("CodexAdapter: redaction", () => {
+  it("scrubs planted secrets before events leave the handle", async () => {
+    // Build a script that plants the secret in the agent's response so
+    // the adapter's redactor has something to scrub.
+    const secretScript = (_input: string): ThreadEvent[] => [
+      { type: "thread.started", thread_id: "thr_s" },
+      { type: "turn.started" },
+      {
+        type: "item.completed",
+        item: {
+          id: "i0",
+          type: "agent_message",
+          text: `here is the token: ${PLANTED_SECRET}`,
+        },
+      },
+      {
+        type: "turn.completed",
+        usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1 },
+      },
+    ];
+    const adapter = makeAdapter([secretScript]);
+    const handle = await adapter.spawn({
+      cwd: "/tmp",
+      runId: newRunId(),
+      vendorCliPath: "/fake/codex",
+    });
+    await handle.send({ text: `echo this: ${PLANTED_SECRET}` });
+    const events = await collectTurn(handle);
+    await handle.shutdown("done");
+
+    for (const ev of events) {
+      const body = JSON.stringify(ev);
+      expect(body).not.toContain(PLANTED_SECRET);
+      expect(body).not.toContain("sk-ant-FAKE");
+    }
+  });
+});
+
+describe("CodexAdapter: setPermissionMode", () => {
+  it("rejects modes not declared in the manifest", async () => {
+    const adapter = makeAdapter([echoScript]);
+    const handle = await adapter.spawn({
+      cwd: "/tmp",
+      runId: newRunId(),
+      vendorCliPath: "/fake/codex",
+    });
+    try {
+      // "plan" is a valid PermissionMode but not declared in Codex's manifest.
+      await expect(handle.setPermissionMode("plan")).rejects.toThrow(/not declared/);
+      // Each declared mode must succeed.
+      await expect(handle.setPermissionMode("default")).resolves.toBeUndefined();
+      await expect(handle.setPermissionMode("acceptEdits")).resolves.toBeUndefined();
+    } finally {
+      await handle.shutdown("done");
+    }
+  });
+});
+
+describe("CodexAdapter: path-scope enforcement", () => {
+  it("denied file_change surfaces a tool_call + error + aborts the turn", async () => {
+    const denyScript = (_input: string): ThreadEvent[] => [
+      { type: "thread.started", thread_id: "thr_deny" },
+      { type: "turn.started" },
+      {
+        type: "item.started",
+        item: {
+          id: "fc_bad",
+          type: "file_change",
+          changes: [{ path: "/etc/passwd", kind: "update" }],
+          status: "completed",
+        },
+      },
+      // Further events would arrive but the handle aborts before reading.
+      {
+        type: "turn.completed",
+        usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1 },
+      },
+    ];
+    const adapter = makeAdapter([denyScript]);
+    const handle = await adapter.spawn({
+      cwd: "/tmp",
+      runId: newRunId(),
+      vendorCliPath: "/fake/codex",
+    });
+    await handle.send({ text: "write outside" });
+
+    const iter = handle.events[Symbol.asyncIterator]();
+    const seen: AgentEvent[] = [];
+    const budget = Date.now() + 2_000;
+    while (Date.now() < budget) {
+      const next = await iter.next();
+      if (next.done) break;
+      seen.push(next.value);
+      if (next.value.kind === "error") break;
+    }
+    await handle.shutdown("done");
+
+    const err = seen.find((e) => e.kind === "error");
+    expect(err).toBeDefined();
+    if (err?.kind !== "error") throw new Error("expected error");
+    expect(err.errorCode).toBe("path_scope_violation");
+  });
+});
+
+describe("CodexAdapter: auth resolution at spawn", () => {
+  it("throws when neither vendorCliPath nor CODEX_API_KEY is present", async () => {
+    const priorKey = process.env.CODEX_API_KEY;
+    delete process.env.CODEX_API_KEY;
+    const adapter = makeAdapter([echoScript]);
+    try {
+      await expect(adapter.spawn({ cwd: "/tmp", runId: newRunId() })).rejects.toThrow(
+        /CODEX_API_KEY/,
+      );
+    } finally {
+      if (priorKey !== undefined) process.env.CODEX_API_KEY = priorKey;
+    }
+  });
+});

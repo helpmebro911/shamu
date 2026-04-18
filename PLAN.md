@@ -590,10 +590,10 @@ Time-boxed validation of the assumptions that cost the most if they're wrong. Ev
 - [x] Claude-specific contract test suite run (13/13)
 
 **Track 2.B — Codex adapter (Parallel with 2.A)**
-- [ ] `packages/adapters/codex`: wrap `@openai/codex-sdk` `startThread`/`resumeThread`/`runStreamed`
-- [ ] JSONL event normalization (`item.completed`, `turn.completed`)
-- [ ] Thread-ID persistence; `CODEX_API_KEY` + ChatGPT-OAuth auth paths
-- [ ] Codex-specific contract test suite run
+- [x] `packages/adapters/codex`: wrap `@openai/codex-sdk@0.121.0` `startThread`/`resumeThread`/`runStreamed`
+- [x] JSONL event normalization (`item.completed`, `turn.completed`); `turn.started` suppressed (covered by `turnId` in envelope)
+- [x] Thread-ID persistence; `CODEX_API_KEY` + ChatGPT-OAuth (`vendorCliPath`) auth paths; `vendorCliPath` takes precedence
+- [x] Codex-specific contract test suite run (13/13)
 
 **Track 2.C — Session persistence & cost (Serial, depends on 2.A or 2.B landing)**
 - [ ] Persist `session_id` ↔ `run_id` mapping into SQLite

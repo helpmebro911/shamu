@@ -1,0 +1,22 @@
+{
+  "name": "@shamu/adapter-codex",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Codex AgentAdapter for Shamu. Wraps @openai/codex-sdk's startThread/resumeThread/runStreamed surface; normalizes JSONL events into the shared AgentEvent schema; enforces path-scope + shell-gate at tool dispatch.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./capabilities.json": "./src/capabilities.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage .turbo"
+  },
+  "dependencies": {
+    "@openai/codex-sdk": "0.121.0",
+    "@shamu/adapters-base": "workspace:*",
+    "@shamu/shared": "workspace:*"
+  }
+}
