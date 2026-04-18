@@ -1,0 +1,4 @@
+# Committed ground-truth fixtures for @shamu/ci — the root .gitignore
+# excludes *.log, which would drop our step-log fixtures. Negate here so
+# `red-test-step-Test.log` and `red-lint-step-Lint.log` are tracked.
+!*.log

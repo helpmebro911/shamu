@@ -681,15 +681,15 @@ The live end-to-end (`SHAMU_FLOW_LIVE=1`) smoke against real Claude + Codex CLIs
 ### Phase 5 — agent-ci gate
 
 **Track 5.A — CI wrapper (Parallel). Lifts the Phase 0.D spike parser from `docs/phase-0/agent-ci-spike/parser/` into `packages/ci/`; only the subprocess driver reshapes from Node `child_process.spawn` to `Bun.spawn`.**
-- [ ] `packages/ci/gate`: spawn `@redwoodjs/agent-ci`; set `GITHUB_REPO` from the worktree's `origin` remote before spawn (boot invariant)
-- [ ] Run-dir discovery via pre/post diff of `<workDir>/runs/` (agent-ci has no stdout pointer to the run dir)
-- [ ] Parse `run-state.json` + per-step logs; **derive run status from workflow + job statuses**, never from top-level `state.status` (fire-and-forget save quirk)
-- [ ] TAP-13 extractor, ESLint-stylish extractor, tail-fallback for unknown formats
-- [ ] ANSI SGR stripping (conservative regex)
-- [ ] `toDomainEvent` projection → `CIRed` / `PatchReady`
-- [ ] Interrupt path: call agent-ci's own abort first, then reap any `agent-ci-<n>` Docker containers as safety net
-- [ ] Replay tests over the three Phase 0.D fixtures (green, red-test, red-lint) — must produce byte-identical summaries
-- [ ] Artifact capture (logs, reports) attached to run row in SQLite
+- [x] `packages/ci/gate`: spawn `@redwoodjs/agent-ci`; set `GITHUB_REPO` from the worktree's `origin` remote before spawn (boot invariant)
+- [x] Run-dir discovery via pre/post diff of `<workDir>/runs/` (agent-ci has no stdout pointer to the run dir)
+- [x] Parse `run-state.json` + per-step logs; **derive run status from workflow + job statuses**, never from top-level `state.status` (fire-and-forget save quirk)
+- [x] TAP-13 extractor, ESLint-stylish extractor, tail-fallback for unknown formats
+- [x] ANSI SGR stripping (conservative regex)
+- [x] `toDomainEvent` projection → `CIRed` / `PatchReady`
+- [x] Interrupt path: call agent-ci's own abort first, then reap any `agent-ci-<n>` Docker containers as safety net
+- [x] Replay tests over the three Phase 0.D fixtures (green, red-test, red-lint) — must produce byte-identical summaries
+- [ ] Artifact capture (logs, reports) attached to run row in SQLite — deferred (needs `@shamu/persistence` schema surface; carried as a Phase 5.C / followup)
 
 **Track 5.B — Reviewer integration (Parallel with 5.A)**
 - [ ] Reviewer excerpt is a committed contract in `packages/ci`: deterministic, token-bounded (2000 default), greedy-then-shrink, TAP/ESLint-aware with tail fallback — lifted from 0.D spike

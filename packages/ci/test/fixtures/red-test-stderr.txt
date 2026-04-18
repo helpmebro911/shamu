@@ -1,0 +1,2 @@
+  ✗ Test
+npx @redwoodjs/agent-ci run --quiet --all  0.74s user 0.32s system 16% cpu 6.424 total

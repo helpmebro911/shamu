@@ -1,0 +1,11 @@
+{
+  "workflowPath": "/Users/watzon/Projects/personal/shamu/docs/phase-0/agent-ci-spike/testrepo/.github/workflows/ci.yml",
+  "workflowName": "ci",
+  "jobName": "check",
+  "workflowRunId": "agent-ci-15",
+  "commitId": "WORKING_TREE",
+  "date": 1776470352515,
+  "taskId": "check",
+  "attempt": 1,
+  "repoPath": "/Users/watzon/Projects/personal/shamu/docs/phase-0/agent-ci-spike/testrepo"
+}

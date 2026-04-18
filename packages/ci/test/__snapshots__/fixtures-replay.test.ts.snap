@@ -1,0 +1,81 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`fixtures replay — snapshot contract > green: excerpt + event match committed snapshot 1`] = `
+{
+  "eventKind": "PatchReady",
+  "excerpt": "agent-ci run run-1776469307456: GREEN
+  workflows: 1, steps: 10, failed jobs: 0, duration: 2s",
+  "failedSteps": [],
+  "runId": "run-1776469307456",
+  "status": "green",
+  "totalSteps": 10,
+}
+`;
+
+exports[`fixtures replay — snapshot contract > red-lint: excerpt + event match committed snapshot 1`] = `
+{
+  "eventKind": "CIRed",
+  "excerpt": "agent-ci run run-1776470318391: RED
+  workflows: 1, steps: 10, failed jobs: 1, duration: 1s
+  failed steps:
+    - ci.yml > check > "Lint" (lint)
+
+[agent-ci-14] failed at "Lint" (lint)
+  - no-var (/home/runner/_work/testrepo/testrepo/src/index.ts:2:3)
+    at /home/runner/_work/testrepo/testrepo/src/index.ts:2:3
+      Unexpected var, use let or const instead
+  - @typescript-eslint/no-unused-vars (/home/runner/_work/testrepo/testrepo/src/index.ts:2:7)
+    at /home/runner/_work/testrepo/testrepo/src/index.ts:2:7
+      '_sum' is assigned a value but never used",
+  "failedSteps": [
+    {
+      "failureKind": "lint",
+      "jobId": "check",
+      "stepName": "Lint",
+      "workflowId": "ci.yml",
+    },
+  ],
+  "runId": "run-1776470318391",
+  "status": "red",
+  "totalSteps": 10,
+}
+`;
+
+exports[`fixtures replay — snapshot contract > red-test: excerpt + event match committed snapshot 1`] = `
+{
+  "eventKind": "CIRed",
+  "excerpt": "agent-ci run run-1776470352075: RED
+  workflows: 1, steps: 10, failed jobs: 1, duration: 2s
+  failed steps:
+    - ci.yml > check > "Test" (test)
+
+[agent-ci-15] failed at "Test" (test)
+  - greets with a trailing period (intentional failure)
+    at /home/runner/_work/testrepo/testrepo/src/index.test.ts:1:335
+      Expected values to be strictly equal:
+      actual expected
+      'Hello, Shamu!.'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 'Hello, Shamu.'
+  - add handles negatives
+    at /home/runner/_work/testrepo/testrepo/src/index.test.ts:1:478
+      Expected values to be strictly equal:
+      -2 !== -3
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: -3
+      actual: -2",
+  "failedSteps": [
+    {
+      "failureKind": "test",
+      "jobId": "check",
+      "stepName": "Test",
+      "workflowId": "ci.yml",
+    },
+  ],
+  "runId": "run-1776470352075",
+  "status": "red",
+  "totalSteps": 10,
+}
+`;

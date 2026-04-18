@@ -1,0 +1,105 @@
+{
+  "runId": "run-1776469307456",
+  "status": "running",
+  "startedAt": "2026-04-17T23:41:47.456Z",
+  "workflows": [
+    {
+      "id": "ci.yml",
+      "path": "/Users/watzon/Projects/personal/shamu/docs/phase-0/agent-ci-spike/testrepo/.github/workflows/ci.yml",
+      "status": "completed",
+      "jobs": [
+        {
+          "id": "check",
+          "runnerId": "agent-ci-11",
+          "status": "completed",
+          "steps": [
+            {
+              "name": "Set up job",
+              "index": 1,
+              "status": "completed",
+              "startedAt": "2026-04-17T23:41:50.2464353Z",
+              "completedAt": "2026-04-17T23:41:50.5500211Z",
+              "durationMs": 304
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "index": 2,
+              "status": "completed",
+              "startedAt": "2026-04-17T23:41:50.5540156Z",
+              "completedAt": "2026-04-17T23:41:50.7122859Z",
+              "durationMs": 158
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "index": 3,
+              "status": "completed",
+              "startedAt": "2026-04-17T23:41:50.71271Z",
+              "completedAt": "2026-04-17T23:41:50.8383929Z",
+              "durationMs": 126
+            },
+            {
+              "name": "Install",
+              "index": 4,
+              "status": "completed",
+              "startedAt": "2026-04-17T23:41:50.838767Z",
+              "completedAt": "2026-04-17T23:41:51.2211398Z",
+              "durationMs": 383
+            },
+            {
+              "name": "Lint",
+              "index": 5,
+              "status": "completed",
+              "startedAt": "2026-04-17T23:41:51.2216168Z",
+              "completedAt": "2026-04-17T23:41:51.7371796Z",
+              "durationMs": 516
+            },
+            {
+              "name": "Typecheck",
+              "index": 6,
+              "status": "completed",
+              "startedAt": "2026-04-17T23:41:51.737686Z",
+              "completedAt": "2026-04-17T23:41:52.20497Z",
+              "durationMs": 467
+            },
+            {
+              "name": "Test",
+              "index": 7,
+              "status": "completed",
+              "startedAt": "2026-04-17T23:41:52.2055515Z",
+              "completedAt": "2026-04-17T23:41:52.3715853Z",
+              "durationMs": 166
+            },
+            {
+              "name": "Capture outputs",
+              "index": 8,
+              "status": "completed",
+              "startedAt": "2026-04-17T23:41:52.371963Z",
+              "completedAt": "2026-04-17T23:41:52.3812563Z",
+              "durationMs": 10
+            },
+            {
+              "name": "Post Setup",
+              "index": 9,
+              "status": "completed"
+            },
+            {
+              "name": "Complete job",
+              "index": 10,
+              "status": "completed",
+              "startedAt": "2026-04-17T23:41:52.5419949Z",
+              "completedAt": "2026-04-17T23:41:52.5429936Z",
+              "durationMs": 1
+            }
+          ],
+          "logDir": "/var/folders/41/0kyhddh92xnfbg8nqmytvb8r0000gn/T/agent-ci/agent-ci/runs/agent-ci-11/logs",
+          "debugLogPath": "/var/folders/41/0kyhddh92xnfbg8nqmytvb8r0000gn/T/agent-ci/agent-ci/runs/agent-ci-11/logs/debug.log",
+          "startedAt": "2026-04-17T23:41:47.889Z",
+          "bootDurationMs": 2933,
+          "durationMs": 2296
+        }
+      ],
+      "startedAt": "2026-04-17T23:41:47.889Z",
+      "completedAt": "2026-04-17T23:41:53.342Z"
+    }
+  ]
+}

@@ -71,6 +71,19 @@
         "@shamu/shared": "workspace:*",
       },
     },
+    "packages/ci": {
+      "name": "@shamu/ci",
+      "version": "0.0.0",
+      "dependencies": {
+        "@shamu/shared": "workspace:*",
+      },
+      "devDependencies": {
+        "@redwoodjs/agent-ci": "0.10.7",
+        "@types/bun": "1.3.12",
+        "typescript": "6.0.3",
+        "vitest": "4.1.4",
+      },
+    },
     "packages/core/composition": {
       "name": "@shamu/core-composition",
       "version": "0.0.0",
@@ -316,6 +329,8 @@
     "@shamu/adapter-echo": ["@shamu/adapter-echo@workspace:packages/adapters/echo"],
 
     "@shamu/adapters-base": ["@shamu/adapters-base@workspace:packages/adapters/base"],
+
+    "@shamu/ci": ["@shamu/ci@workspace:packages/ci"],
 
     "@shamu/cli": ["@shamu/cli@workspace:apps/cli"],
 

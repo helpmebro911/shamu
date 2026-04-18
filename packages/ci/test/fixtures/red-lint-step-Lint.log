@@ -1,0 +1,17 @@
+up to date in 297ms
+> agent-ci-testrepo@0.0.1 lint
+> eslint src
+[0m[0m
+[0m[4m/home/runner/_work/testrepo/testrepo/src/index.ts[24m[0m
+[0m  [2m2:3[22m  [31merror[39m  Unexpected var, use let or const instead   [2mno-var[22m[0m
+[0m  [2m2:7[22m  [31merror[39m  '_sum' is assigned a value but never used  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[31m[1m✖ 2 problems (2 errors, 0 warnings)[22m[39m[0m
+[0m[31m[1m[22m[39m[31m[1m  1 error and 0 warnings potentially fixable with the `--fix` option.[22m[39m[0m
+[0m[31m[1m[22m[39m[0m
+Post job cleanup.
+git version 2.53.0
+Temporarily overriding HOME='/home/runner/_work/_temp/140a85d3-111c-46cb-ae58-47d6aff06526' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+http.https://github.com/.extraheader
+Cleaning up orphan processes
