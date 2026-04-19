@@ -35,6 +35,7 @@
         "@shamu/persistence": "workspace:*",
         "@shamu/shared": "workspace:*",
         "@shamu/watchdog": "workspace:*",
+        "@shamu/web": "workspace:*",
         "citty": "0.1.6",
         "zod": "4.1.13",
       },
