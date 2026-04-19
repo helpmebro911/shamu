@@ -10,6 +10,7 @@ import {
   CURSOR_CAPABILITIES,
   CursorAdapter,
   type CursorDriver,
+  type CursorDriverOptions,
   createCursorAdapter,
 } from "../src/index.ts";
 import { makeFakeDriver } from "./harness.ts";
@@ -108,6 +109,49 @@ describe("CursorAdapter — spawn + resume", () => {
       method: "cursor_login",
       params: { apiKey: "sk-cursor-fixture-abc" },
     });
+    await handle.shutdown("t");
+  });
+});
+
+describe("CursorAdapter — env threading", () => {
+  it("passes SpawnOpts.env to the driver factory, merged on top of vendorOpts.env", async () => {
+    const captured: CursorDriverOptions[] = [];
+    const adapter = new CursorAdapter({
+      driverFactory: async (o) => {
+        captured.push(o);
+        return makeFakeDriver().driver;
+      },
+    });
+    const handle = await adapter.spawn({
+      runId: newRunId(),
+      cwd: "/tmp/shamu-cursor-test",
+      vendorOpts: { env: { VENDOR_ONLY: "v", SHARED: "vendor" } },
+      env: {
+        HTTPS_PROXY: "http://127.0.0.1:1111",
+        HTTP_PROXY: "http://127.0.0.1:1111",
+        NO_PROXY: "127.0.0.1,localhost",
+        SHARED: "spawn",
+      },
+    });
+    const env = captured[0]?.env;
+    expect(env?.HTTPS_PROXY).toBe("http://127.0.0.1:1111");
+    expect(env?.HTTP_PROXY).toBe("http://127.0.0.1:1111");
+    expect(env?.NO_PROXY).toBe("127.0.0.1,localhost");
+    expect(env?.SHARED).toBe("spawn");
+    expect(env?.VENDOR_ONLY).toBe("v");
+    await handle.shutdown("t");
+  });
+
+  it("omits driver.env when neither vendorOpts.env nor SpawnOpts.env is supplied", async () => {
+    const captured: CursorDriverOptions[] = [];
+    const adapter = new CursorAdapter({
+      driverFactory: async (o) => {
+        captured.push(o);
+        return makeFakeDriver().driver;
+      },
+    });
+    const handle = await adapter.spawn({ runId: newRunId(), cwd: "/tmp/shamu-cursor-test" });
+    expect(captured[0]?.env).toBeUndefined();
     await handle.shutdown("t");
   });
 });

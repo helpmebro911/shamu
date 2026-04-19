@@ -145,6 +145,65 @@ describe("ClaudeAdapter — runId ownership (G8)", () => {
   });
 });
 
+describe("ClaudeAdapter — env threading", () => {
+  let root: string;
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), "shamu-claude-unit-"));
+  });
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("threads SpawnOpts.env through to claudeOptions.env, merged on top of the adapter's PATH/HOME allow-list", async () => {
+    let capturedEnv: Record<string, string | undefined> | undefined;
+    const factory: ClaudeDriverFactory = async (ctx) => {
+      // ClaudeOptions.env is `{ [envVar: string]: string | undefined }` per SDK.
+      capturedEnv = ctx.claudeOptions.env;
+      return makeScriptedDriver(scriptedHelloResult);
+    };
+    const adapter = new ClaudeAdapter({ driverFactory: factory });
+    const handle = await adapter.spawn({
+      cwd: root,
+      runId: newRunId(),
+      env: {
+        HTTPS_PROXY: "http://127.0.0.1:4444",
+        HTTP_PROXY: "http://127.0.0.1:4444",
+        NO_PROXY: "127.0.0.1,localhost",
+      },
+    });
+    try {
+      expect(capturedEnv?.HTTPS_PROXY).toBe("http://127.0.0.1:4444");
+      expect(capturedEnv?.HTTP_PROXY).toBe("http://127.0.0.1:4444");
+      expect(capturedEnv?.NO_PROXY).toBe("127.0.0.1,localhost");
+      // The base allow-list entries are still present — SpawnOpts.env did
+      // not wipe them.
+      expect(capturedEnv?.PATH).toBe(process.env.PATH);
+    } finally {
+      await handle.shutdown("done");
+    }
+  });
+
+  it("empty-string in SpawnOpts.env deletes the key from claudeOptions.env", async () => {
+    let capturedEnv: Record<string, string | undefined> | undefined;
+    const factory: ClaudeDriverFactory = async (ctx) => {
+      capturedEnv = ctx.claudeOptions.env;
+      return makeScriptedDriver(scriptedHelloResult);
+    };
+    const adapter = new ClaudeAdapter({ driverFactory: factory });
+    const handle = await adapter.spawn({
+      cwd: root,
+      runId: newRunId(),
+      env: { PATH: "" },
+    });
+    try {
+      expect(capturedEnv).toBeDefined();
+      expect(capturedEnv?.PATH).toBeUndefined();
+    } finally {
+      await handle.shutdown("done");
+    }
+  });
+});
+
 describe("ClaudeAdapter — event projection end-to-end", () => {
   let root: string;
   beforeEach(() => {

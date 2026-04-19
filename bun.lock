@@ -152,8 +152,10 @@
       "name": "@shamu/core-composition",
       "version": "0.0.0",
       "dependencies": {
+        "@shamu/adapters-base": "workspace:*",
         "@shamu/core-flow": "workspace:*",
         "@shamu/core-supervisor": "workspace:*",
+        "@shamu/egress-broker": "workspace:*",
         "@shamu/mailbox": "workspace:*",
         "@shamu/persistence": "workspace:*",
         "@shamu/shared": "workspace:*",
@@ -162,7 +164,6 @@
       },
       "devDependencies": {
         "@shamu/adapter-echo": "workspace:*",
-        "@shamu/adapters-base": "workspace:*",
       },
     },
     "packages/core/flow": {

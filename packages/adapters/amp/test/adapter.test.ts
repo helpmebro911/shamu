@@ -129,6 +129,60 @@ describe("AmpAdapter — spawn + resume", () => {
     await handle.shutdown("test");
   });
 
+  it("threads SpawnOpts.env through to driver.env, merging on top of vendorOpts.env", async () => {
+    const captured: AmpDriverOptions[] = [];
+    const adapter = new AmpAdapter({
+      driverFactory: factoryWith({ lastDriverOpts: captured }),
+    });
+    const handle = await adapter.spawn({
+      runId: newRunId(),
+      cwd: "/tmp/shamu-amp-fake",
+      vendorOpts: {
+        env: { VENDOR_ONLY: "vendor", SHARED_KEY: "vendor-wins-first" },
+      },
+      env: {
+        HTTPS_PROXY: "http://127.0.0.1:9999",
+        HTTP_PROXY: "http://127.0.0.1:9999",
+        NO_PROXY: "127.0.0.1,localhost",
+        SHARED_KEY: "spawn-wins",
+      },
+    });
+    const driverEnv = captured[0]?.env;
+    expect(driverEnv?.HTTPS_PROXY).toBe("http://127.0.0.1:9999");
+    expect(driverEnv?.HTTP_PROXY).toBe("http://127.0.0.1:9999");
+    expect(driverEnv?.NO_PROXY).toBe("127.0.0.1,localhost");
+    // SpawnOpts.env wins over vendorOpts.env for the overlapping key.
+    expect(driverEnv?.SHARED_KEY).toBe("spawn-wins");
+    // vendorOpts.env pass-through still present.
+    expect(driverEnv?.VENDOR_ONLY).toBe("vendor");
+    await handle.shutdown("test");
+  });
+
+  it("omits driver.env entirely when neither vendorOpts.env nor SpawnOpts.env is set", async () => {
+    const captured: AmpDriverOptions[] = [];
+    const adapter = new AmpAdapter({
+      driverFactory: factoryWith({ lastDriverOpts: captured }),
+    });
+    const handle = await adapter.spawn({ runId: newRunId(), cwd: "/tmp/shamu-amp-fake" });
+    expect(captured[0]?.env).toBeUndefined();
+    await handle.shutdown("test");
+  });
+
+  it("empty-string in SpawnOpts.env deletes a key from the merged env", async () => {
+    const captured: AmpDriverOptions[] = [];
+    const adapter = new AmpAdapter({
+      driverFactory: factoryWith({ lastDriverOpts: captured }),
+    });
+    const handle = await adapter.spawn({
+      runId: newRunId(),
+      cwd: "/tmp/shamu-amp-fake",
+      vendorOpts: { env: { LEGACY_KEY: "should-be-deleted" } },
+      env: { LEGACY_KEY: "" },
+    });
+    expect(captured[0]?.env?.LEGACY_KEY).toBeUndefined();
+    await handle.shutdown("test");
+  });
+
   it("closes driver on spawn-post failure (rollback)", async () => {
     // Force the handle constructor to throw by supplying a handle-time
     // factory that deliberately triggers failure. We do this by overriding

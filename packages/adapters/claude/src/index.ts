@@ -361,6 +361,19 @@ export class ClaudeAdapter implements AgentAdapter {
       USER: process.env.USER,
     };
     if (saltStrategy === "env") envMap.SHAMU_CACHE_SALT = cacheSalt;
+    // SpawnOpts.env merges on top of the adapter's allow-list. Empty strings
+    // delete a key (standard env-merge semantics). Primary use: the egress
+    // broker injects HTTPS_PROXY/HTTP_PROXY/NO_PROXY here at spawn time.
+    if (spawnOpts.env) {
+      for (const [k, v] of Object.entries(spawnOpts.env)) {
+        if (typeof v !== "string") continue;
+        if (v.length === 0) {
+          delete envMap[k];
+          continue;
+        }
+        envMap[k] = v;
+      }
+    }
 
     const effectiveSystemPrompt =
       saltStrategy === "prompt" && systemPrompt.length > 0

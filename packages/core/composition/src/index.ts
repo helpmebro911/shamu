@@ -27,6 +27,13 @@
  *     the patch lifecycle runs after every merge, per PLAN § "Patch
  *     lifecycle" line 450. Needs git + glob matching but is not a
  *     worktree primitive (it reads diffs, doesn't manipulate worktrees).
+ *
+ *   - `withEgressBroker` — starts an `@shamu/egress-broker` per run and
+ *     returns a `SpawnOpts` with `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY`
+ *     injected so the next adapter `spawn()` call routes its vendor
+ *     subprocess through the policy-enforcing loopback proxy. Pure glue
+ *     between `@shamu/egress-broker` and `@shamu/adapters-base`; deliberately
+ *     does NOT depend on supervisor/mailbox/watchdog.
  */
 
 export {
@@ -53,3 +60,9 @@ export {
   type ReadRunRow,
   type ReadRunRowResult,
 } from "./persistence-read-run.ts";
+export {
+  type EgressBrokerEventHandler,
+  type WithEgressBrokerOptions,
+  type WithEgressBrokerResult,
+  withEgressBroker,
+} from "./with-egress-broker.ts";

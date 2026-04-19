@@ -169,10 +169,15 @@ export class AmpAdapter implements AgentAdapter {
     };
     const auth = applyAmpAuth(authOpts);
 
+    // `SpawnOpts.env` merges on top of `vendorOpts.env`. Broker-supplied
+    // HTTPS_PROXY/HTTP_PROXY/NO_PROXY win over caller-supplied vendor env;
+    // the driver's `defaultEnv` then layers the result on top of
+    // PATH/HOME/XDG_* + AMP_API_KEY. Empty-string values delete a key.
+    const mergedEnv = mergeCallerEnv(vendorOpts.env, opts.env);
     const driverOpts: AmpDriverOptions = {
       cwd: opts.cwd,
       ...(opts.vendorCliPath !== undefined ? { vendorCliPath: opts.vendorCliPath } : {}),
-      ...(vendorOpts.env !== undefined ? { env: vendorOpts.env } : {}),
+      ...(mergedEnv !== undefined ? { env: mergedEnv } : {}),
       ...(vendorOpts.extraArgs !== undefined ? { extraArgs: vendorOpts.extraArgs } : {}),
       ...(vendorOpts.sigkillTimeoutMs !== undefined
         ? { sigkillTimeoutMs: vendorOpts.sigkillTimeoutMs }
@@ -222,4 +227,34 @@ export class AmpAdapter implements AgentAdapter {
 /** Convenience factory. */
 export function createAmpAdapter(options: AmpAdapterOptions = {}): AmpAdapter {
   return new AmpAdapter(options);
+}
+
+/**
+ * Merge `SpawnOpts.env` on top of `vendorOpts.env` with empty-string = delete
+ * semantics. Returns `undefined` when neither side contributes. The driver's
+ * `defaultEnv` then layers the result on top of the PATH/HOME/XDG_* +
+ * AMP_API_KEY passthrough.
+ */
+function mergeCallerEnv(
+  vendorEnv: Readonly<Record<string, string>> | undefined,
+  spawnEnv: Readonly<Record<string, string>> | undefined,
+): Readonly<Record<string, string>> | undefined {
+  if (!vendorEnv && !spawnEnv) return undefined;
+  const out: Record<string, string> = {};
+  if (vendorEnv) {
+    for (const [k, v] of Object.entries(vendorEnv)) {
+      if (typeof v === "string") out[k] = v;
+    }
+  }
+  if (spawnEnv) {
+    for (const [k, v] of Object.entries(spawnEnv)) {
+      if (typeof v !== "string") continue;
+      if (v.length === 0) {
+        delete out[k];
+        continue;
+      }
+      out[k] = v;
+    }
+  }
+  return out;
 }
