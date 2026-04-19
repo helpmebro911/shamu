@@ -189,10 +189,16 @@ export class GeminiAdapter implements AgentAdapter {
     opts: SpawnOpts,
   ): Promise<AgentHandle> {
     const vendorOpts = (opts.vendorOpts ?? {}) as GeminiVendorOpts;
+    // `SpawnOpts.env` merges on top of `vendorOpts.env`. Broker-supplied
+    // HTTPS_PROXY/HTTP_PROXY/NO_PROXY (per-run) win over the caller's
+    // vendor-specific allow-list; the driver's `defaultEnv` then merges the
+    // result on top of the PATH/HOME/XDG_* passthrough. Empty-string values
+    // delete a key (standard env-merge semantics).
+    const mergedEnv = mergeCallerEnv(vendorOpts.env, opts.env);
     const driverOpts: GeminiDriverOptions = {
       ...(opts.vendorCliPath !== undefined ? { vendorCliPath: opts.vendorCliPath } : {}),
       cwd: opts.cwd,
-      ...(vendorOpts.env !== undefined ? { env: vendorOpts.env } : {}),
+      ...(mergedEnv !== undefined ? { env: mergedEnv } : {}),
       ...(vendorOpts.extraArgs !== undefined ? { extraArgs: vendorOpts.extraArgs } : {}),
       ...(vendorOpts.sigkillTimeoutMs !== undefined
         ? { sigkillTimeoutMs: vendorOpts.sigkillTimeoutMs }
@@ -265,4 +271,34 @@ export class GeminiAdapter implements AgentAdapter {
 /** Convenience factory. */
 export function createGeminiAdapter(options: GeminiAdapterOptions = {}): GeminiAdapter {
   return new GeminiAdapter(options);
+}
+
+/**
+ * Merge `SpawnOpts.env` on top of `vendorOpts.env` with empty-string = delete
+ * semantics. Returns `undefined` when neither side contributes a key. The
+ * driver's own `defaultEnv` then layers the result on top of the
+ * PATH/HOME/XDG_* passthrough.
+ */
+function mergeCallerEnv(
+  vendorEnv: Readonly<Record<string, string>> | undefined,
+  spawnEnv: Readonly<Record<string, string>> | undefined,
+): Readonly<Record<string, string>> | undefined {
+  if (!vendorEnv && !spawnEnv) return undefined;
+  const out: Record<string, string> = {};
+  if (vendorEnv) {
+    for (const [k, v] of Object.entries(vendorEnv)) {
+      if (typeof v === "string") out[k] = v;
+    }
+  }
+  if (spawnEnv) {
+    for (const [k, v] of Object.entries(spawnEnv)) {
+      if (typeof v !== "string") continue;
+      if (v.length === 0) {
+        delete out[k];
+        continue;
+      }
+      out[k] = v;
+    }
+  }
+  return out;
 }

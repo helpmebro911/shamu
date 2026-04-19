@@ -196,6 +196,12 @@ export class CodexAdapter implements AgentAdapter {
         ? { codexPathOverride: auth.codexPathOverride }
         : {}),
       ...(auth.apiKey !== undefined ? { apiKey: auth.apiKey } : {}),
+      // Only set `env` if the caller supplied one — the SDK's default is
+      // "inherit process.env", which is what we want when no broker is
+      // injecting proxy vars. When we DO pass env, the SDK stops inheriting
+      // `process.env`, so we materialize the process env first and then
+      // merge the caller's overrides on top.
+      ...(opts.env !== undefined ? { env: mergeProcessEnvWith(opts.env) } : {}),
     };
     return this.codexFactory(sdkOpts);
   }
@@ -229,4 +235,26 @@ function defaultCodexFactory(sdkOpts: CodexOptions): CodexLike {
     startThread: (options) => sdk.startThread(options),
     resumeThread: (id, options) => sdk.resumeThread(id, options),
   };
+}
+
+/**
+ * Materialize `process.env` (filtered to defined string values) and merge
+ * the caller's overrides on top. Empty-string overrides delete the key —
+ * standard env-merge semantics. Used for the Codex SDK whose `env` option,
+ * when provided, stops inheriting `process.env` entirely.
+ */
+function mergeProcessEnvWith(overrides: Readonly<Record<string, string>>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (typeof v === "string") out[k] = v;
+  }
+  for (const [k, v] of Object.entries(overrides)) {
+    if (typeof v !== "string") continue;
+    if (v.length === 0) {
+      delete out[k];
+      continue;
+    }
+    out[k] = v;
+  }
+  return out;
 }

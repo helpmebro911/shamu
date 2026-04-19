@@ -246,3 +246,71 @@ describe("CodexAdapter: auth resolution at spawn", () => {
     }
   });
 });
+
+describe("CodexAdapter: env threading", () => {
+  it("threads SpawnOpts.env through to CodexOptions.env, merged on top of process.env", async () => {
+    let captured: Record<string, string> | undefined;
+    const adapter = new CodexAdapter({
+      codexFactory: (sdkOpts): CodexLike => {
+        captured = sdkOpts.env;
+        return new FakeCodex(
+          (kind, id) =>
+            new FakeThread({
+              id: kind === "resume" ? id : null,
+              scripts: [echoScript],
+            }),
+        );
+      },
+    });
+    const handle = await adapter.spawn({
+      cwd: "/tmp",
+      runId: newRunId(),
+      vendorCliPath: "/fake/codex",
+      env: {
+        HTTPS_PROXY: "http://127.0.0.1:5555",
+        HTTP_PROXY: "http://127.0.0.1:5555",
+        NO_PROXY: "127.0.0.1,localhost",
+      },
+    });
+    try {
+      expect(captured?.HTTPS_PROXY).toBe("http://127.0.0.1:5555");
+      expect(captured?.HTTP_PROXY).toBe("http://127.0.0.1:5555");
+      expect(captured?.NO_PROXY).toBe("127.0.0.1,localhost");
+      // process.env was materialized underneath (the SDK's env option
+      // suppresses process.env inheritance, so we carry it forward
+      // explicitly).
+      if (process.env.PATH) expect(captured?.PATH).toBe(process.env.PATH);
+    } finally {
+      await handle.shutdown("done");
+    }
+  });
+
+  it("omits CodexOptions.env entirely when SpawnOpts.env is absent", async () => {
+    let called = false;
+    let captured: Record<string, string> | undefined;
+    const adapter = new CodexAdapter({
+      codexFactory: (sdkOpts): CodexLike => {
+        called = true;
+        captured = sdkOpts.env;
+        return new FakeCodex(
+          (kind, id) =>
+            new FakeThread({
+              id: kind === "resume" ? id : null,
+              scripts: [echoScript],
+            }),
+        );
+      },
+    });
+    const handle = await adapter.spawn({
+      cwd: "/tmp",
+      runId: newRunId(),
+      vendorCliPath: "/fake/codex",
+    });
+    try {
+      expect(called).toBe(true);
+      expect(captured).toBeUndefined();
+    } finally {
+      await handle.shutdown("done");
+    }
+  });
+});

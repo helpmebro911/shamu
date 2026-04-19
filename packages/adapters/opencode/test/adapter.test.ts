@@ -155,4 +155,25 @@ describe("OpencodeAdapter — spawn + resume", () => {
     ).rejects.toThrow(/boom/);
     expect(closed()).toBe(true);
   });
+
+  it("accepts SpawnOpts.env without error (OpenCode SDK's ServerOptions lacks env — documented limitation)", async () => {
+    // The OpenCode SDK's `createOpencode({ hostname, port, signal, timeout })`
+    // does not expose an `env` parameter; the SDK inherits `process.env`. We
+    // still accept `opts.env` at the contract level so callers (notably
+    // withEgressBroker) can uniformly set `HTTPS_PROXY`/etc. without
+    // branching on vendor. Proxy env must be pre-set on the shamu process
+    // for owned-server mode until the SDK grows a `ServerOptions.env`.
+    const { driver } = fakeDriver();
+    const adapter = new OpencodeAdapter({ driverFactory: async () => driver });
+    const handle = await adapter.spawn({
+      runId: newRunId(),
+      cwd: "/tmp/shamu-opencode-test-fake",
+      env: {
+        HTTPS_PROXY: "http://127.0.0.1:6666",
+        HTTP_PROXY: "http://127.0.0.1:6666",
+        NO_PROXY: "127.0.0.1,localhost",
+      },
+    });
+    await handle.shutdown("test");
+  });
 });

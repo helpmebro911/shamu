@@ -235,10 +235,15 @@ export class PiAdapter implements AgentAdapter {
       ...providerModelArgs,
       ...(vendorOpts.extraArgs ?? []),
     ];
+    // `SpawnOpts.env` merges on top of `vendorOpts.env`. Broker-supplied
+    // HTTPS_PROXY/HTTP_PROXY/NO_PROXY win over caller-supplied vendor env;
+    // the driver's `defaultEnv` then layers the result on top of
+    // PATH/HOME/XDG_* + provider-API keys. Empty-string values delete a key.
+    const mergedEnv = mergeCallerEnv(vendorOpts.env, opts.env);
     const driverOpts: PiDriverOptions = {
       ...(opts.vendorCliPath !== undefined ? { vendorCliPath: opts.vendorCliPath } : {}),
       cwd: opts.cwd,
-      ...(vendorOpts.env !== undefined ? { env: vendorOpts.env } : {}),
+      ...(mergedEnv !== undefined ? { env: mergedEnv } : {}),
       ...(mergedExtraArgs.length > 0 ? { extraArgs: mergedExtraArgs } : {}),
       ...(vendorOpts.ephemeralSession !== undefined
         ? { ephemeralSession: vendorOpts.ephemeralSession }
@@ -327,6 +332,36 @@ export class PiAdapter implements AgentAdapter {
 /** Convenience factory. */
 export function createPiAdapter(options: PiAdapterOptions = {}): PiAdapter {
   return new PiAdapter(options);
+}
+
+/**
+ * Merge `SpawnOpts.env` on top of `vendorOpts.env` with empty-string = delete
+ * semantics. Returns `undefined` when neither side contributes. The driver's
+ * `defaultEnv` then layers the result on top of the PATH/HOME/XDG_* +
+ * provider-API-key passthrough.
+ */
+function mergeCallerEnv(
+  vendorEnv: Readonly<Record<string, string>> | undefined,
+  spawnEnv: Readonly<Record<string, string>> | undefined,
+): Readonly<Record<string, string>> | undefined {
+  if (!vendorEnv && !spawnEnv) return undefined;
+  const out: Record<string, string> = {};
+  if (vendorEnv) {
+    for (const [k, v] of Object.entries(vendorEnv)) {
+      if (typeof v === "string") out[k] = v;
+    }
+  }
+  if (spawnEnv) {
+    for (const [k, v] of Object.entries(spawnEnv)) {
+      if (typeof v !== "string") continue;
+      if (v.length === 0) {
+        delete out[k];
+        continue;
+      }
+      out[k] = v;
+    }
+  }
+  return out;
 }
 
 /**

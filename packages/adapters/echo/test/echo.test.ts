@@ -56,6 +56,25 @@ describe("EchoAdapter: spawn + scripted turn", () => {
     expect(kinds[kinds.length - 1]).toBe("turn_end");
   });
 
+  it("accepts SpawnOpts.env (contract parity; echo has no subprocess — field is a no-op)", async () => {
+    const adapter = new EchoAdapter();
+    const handle = await adapter.spawn({
+      cwd: "/tmp",
+      runId: newRunId(),
+      env: {
+        HTTPS_PROXY: "http://127.0.0.1:7777",
+        HTTP_PROXY: "http://127.0.0.1:7777",
+        NO_PROXY: "127.0.0.1,localhost",
+      },
+    });
+    await handle.send({ text: "" });
+    const events = await collectTurn(handle);
+    await handle.shutdown("done");
+    // Same event shape as the baseline — env had no observable effect.
+    expect(events[0]?.kind).toBe("session_start");
+    expect(events[events.length - 1]?.kind).toBe("turn_end");
+  });
+
   it("emits a deterministic cost event with source=computed and confidence=estimate", async () => {
     const adapter = new EchoAdapter();
     const handle = await adapter.spawn({ cwd: "/tmp", runId: newRunId() });

@@ -78,6 +78,20 @@ export interface SpawnOpts {
    * accepts unknown because the core does not look inside.
    */
   readonly vendorOpts?: Readonly<Record<string, unknown>>;
+  /**
+   * Supplemental env vars injected into the vendor subprocess. Intended
+   * primarily for `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY` set by the egress
+   * broker at spawn time. Keys here are merged on top of the adapter's
+   * default env allow-list; empty-string values clear a key.
+   *
+   * Adapters without a subprocess (e.g. the echo in-memory driver) accept
+   * the field for contract consistency and ignore it. SDK-spawned adapters
+   * (Claude, Codex) forward the merged map to the SDK's own subprocess
+   * `env` option. Adapters that own the subprocess directly
+   * (Cursor/Gemini/Amp/Pi) merge the caller map on top of their existing
+   * env allow-list before calling `Bun.spawn` / `createStdioTransport`.
+   */
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 /**

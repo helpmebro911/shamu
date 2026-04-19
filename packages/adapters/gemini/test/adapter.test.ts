@@ -11,6 +11,7 @@ import {
   GEMINI_CAPABILITIES,
   GeminiAdapter,
   type GeminiDriver,
+  type GeminiDriverOptions,
 } from "../src/index.ts";
 import { makeFakeDriver } from "./harness.ts";
 
@@ -108,6 +109,49 @@ describe("GeminiAdapter — spawn + resume", () => {
       method: "authenticate",
       params: { apiKey: "gapi-fixture-xyz" },
     });
+    await handle.shutdown("t");
+  });
+});
+
+describe("GeminiAdapter — env threading", () => {
+  it("passes SpawnOpts.env to the driver factory, merged on top of vendorOpts.env", async () => {
+    const captured: GeminiDriverOptions[] = [];
+    const adapter = new GeminiAdapter({
+      driverFactory: async (o) => {
+        captured.push(o);
+        return makeFakeDriver().driver;
+      },
+    });
+    const handle = await adapter.spawn({
+      runId: newRunId(),
+      cwd: "/tmp/shamu-gemini-test",
+      vendorOpts: { env: { VENDOR_ONLY: "v", SHARED: "vendor" } },
+      env: {
+        HTTPS_PROXY: "http://127.0.0.1:2222",
+        HTTP_PROXY: "http://127.0.0.1:2222",
+        NO_PROXY: "127.0.0.1,localhost",
+        SHARED: "spawn",
+      },
+    });
+    const env = captured[0]?.env;
+    expect(env?.HTTPS_PROXY).toBe("http://127.0.0.1:2222");
+    expect(env?.HTTP_PROXY).toBe("http://127.0.0.1:2222");
+    expect(env?.NO_PROXY).toBe("127.0.0.1,localhost");
+    expect(env?.SHARED).toBe("spawn");
+    expect(env?.VENDOR_ONLY).toBe("v");
+    await handle.shutdown("t");
+  });
+
+  it("omits driver.env when no env source is supplied", async () => {
+    const captured: GeminiDriverOptions[] = [];
+    const adapter = new GeminiAdapter({
+      driverFactory: async (o) => {
+        captured.push(o);
+        return makeFakeDriver().driver;
+      },
+    });
+    const handle = await adapter.spawn({ runId: newRunId(), cwd: "/tmp/shamu-gemini-test" });
+    expect(captured[0]?.env).toBeUndefined();
     await handle.shutdown("t");
   });
 });

@@ -7,7 +7,7 @@
 
 import { newRunId } from "@shamu/shared/ids";
 import { describe, expect, it } from "vitest";
-import { createPiAdapter, PI_CAPABILITIES, PiAdapter } from "../src/index.ts";
+import { createPiAdapter, PI_CAPABILITIES, PiAdapter, type PiDriverOptions } from "../src/index.ts";
 import { makeFakeDriver } from "./harness.ts";
 
 describe("PiAdapter — capabilities", () => {
@@ -119,6 +119,49 @@ describe("PiAdapter — spawn + resume", () => {
     const named = harness.calls.filter((c) => c.type === "set_session_name");
     expect(named.length).toBe(1);
     expect(named[0]?.params).toEqual({ name: "test run" });
+    await handle.shutdown("t");
+  });
+});
+
+describe("PiAdapter — env threading", () => {
+  it("passes SpawnOpts.env to the driver factory, merged on top of vendorOpts.env", async () => {
+    const captured: PiDriverOptions[] = [];
+    const adapter = new PiAdapter({
+      driverFactory: async (o) => {
+        captured.push(o);
+        return makeFakeDriver().driver;
+      },
+    });
+    const handle = await adapter.spawn({
+      runId: newRunId(),
+      cwd: "/tmp/shamu-pi-test-fake",
+      vendorOpts: { env: { VENDOR_ONLY: "v", SHARED: "vendor" } },
+      env: {
+        HTTPS_PROXY: "http://127.0.0.1:3333",
+        HTTP_PROXY: "http://127.0.0.1:3333",
+        NO_PROXY: "127.0.0.1,localhost",
+        SHARED: "spawn",
+      },
+    });
+    const env = captured[0]?.env;
+    expect(env?.HTTPS_PROXY).toBe("http://127.0.0.1:3333");
+    expect(env?.HTTP_PROXY).toBe("http://127.0.0.1:3333");
+    expect(env?.NO_PROXY).toBe("127.0.0.1,localhost");
+    expect(env?.SHARED).toBe("spawn");
+    expect(env?.VENDOR_ONLY).toBe("v");
+    await handle.shutdown("t");
+  });
+
+  it("omits driver.env when no env source is supplied", async () => {
+    const captured: PiDriverOptions[] = [];
+    const adapter = new PiAdapter({
+      driverFactory: async (o) => {
+        captured.push(o);
+        return makeFakeDriver().driver;
+      },
+    });
+    const handle = await adapter.spawn({ runId: newRunId(), cwd: "/tmp/shamu-pi-test-fake" });
+    expect(captured[0]?.env).toBeUndefined();
     await handle.shutdown("t");
   });
 });
